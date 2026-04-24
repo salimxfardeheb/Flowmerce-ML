@@ -22,15 +22,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from config import (
     SPLITS_FILE,
     MODEL_RESOLUTION,
-    MODEL_SHIPPING,
     TRAIN_COLUMNS,
     SEUIL_F1_RESOLUTION,
-    SEUIL_F1_SHIPPING,
     SEUIL_ACCURACY,
     N_ITER_SEARCH,
     RANDOM_STATE,
     RESOLUTION_LABELS,
-    SHIPPING_LABELS,
 )
 
 
@@ -179,16 +176,14 @@ if __name__ == "__main__":
     with open(SPLITS_FILE, "rb") as f:
         splits = pickle.load(f)
 
-    X_train      = splits["X_train"]
-    X_test       = splits["X_test"]
-    y_res_train  = splits["y_res_train"]
-    y_res_test   = splits["y_res_test"]
-    y_ship_train = splits["y_ship_train"]
-    y_ship_test  = splits["y_ship_test"]
+    X_train     = splits["X_train"]
+    X_test      = splits["X_test"]
+    y_res_train = splits["y_res_train"]
+    y_res_test  = splits["y_res_test"]
 
-    # ── MODÈLE 1 — Resolution ──
+    # ── MODÈLE — Resolution ──
     print("\n" + "─" * 60)
-    print("  MODÈLE 1 : RESOLUTION (Random Forest)")
+    print("  MODÈLE : RESOLUTION (Random Forest)")
     print("─" * 60 + "\n")
 
     t1 = time.time()
@@ -204,27 +199,7 @@ if __name__ == "__main__":
     res_ok = verifier_performance(
         metrics_res, "Resolution", seuil_f1=SEUIL_F1_RESOLUTION,
     )
-    print(f"  Temps modele Resolution : {time.time() - t1:.1f}s")
-
-    # ── MODÈLE 2 — Shipping_Paid_By ──
-    print("\n" + "─" * 60)
-    print("  MODÈLE 2 : SHIPPING PAID BY (Random Forest)")
-    print("─" * 60 + "\n")
-
-    t2 = time.time()
-    labels_ship = list(SHIPPING_LABELS.values())
-    model_shipping = entrainer_random_forest(
-        X_train, y_ship_train, nom_modele="Shipping_Paid_By",
-    )
-    metrics_ship = evaluer_modele(
-        model_shipping, X_test, y_ship_test,
-        nom_modele="Shipping_Paid_By", labels=labels_ship,
-    )
-    afficher_feature_importances(model_shipping, X_train.columns)
-    ship_ok = verifier_performance(
-        metrics_ship, "Shipping_Paid_By", seuil_f1=SEUIL_F1_SHIPPING,
-    )
-    print(f"  Temps modele Shipping   : {time.time() - t2:.1f}s")
+    print(f"  Temps modèle Resolution : {time.time() - t1:.1f}s")
 
     # ── SAUVEGARDE CONDITIONNELLE ──
     print("\n" + "=" * 60)
@@ -233,23 +208,11 @@ if __name__ == "__main__":
 
     if res_ok:
         sauvegarder(model_resolution, MODEL_RESOLUTION)
+        sauvegarder(list(X_train.columns), TRAIN_COLUMNS)
+        print(f"\n  Modèle prêt pour le déploiement API !")
     else:
         print("[SKIP] model_resolution NON sauvegardé (performance insuffisante)")
-
-    if ship_ok:
-        sauvegarder(model_shipping, MODEL_SHIPPING)
-    else:
-        print("[SKIP] model_shipping NON sauvegardé (performance insuffisante)")
-
-    if res_ok or ship_ok:
-        sauvegarder(list(X_train.columns), TRAIN_COLUMNS)
-
-    if res_ok and ship_ok:
-        print(f"\n  Tous les modèles sont prêts pour le déploiement API !")
-    elif res_ok or ship_ok:
-        print(f"\n  Attention : un seul modèle a passé les seuils.")
-    else:
-        print(f"\n  Aucun modèle n'a passé les seuils — révision nécessaire.")
+        print(f"\n  Modèle n'a pas passé les seuils — révision nécessaire.")
 
     elapsed = time.time() - t_total
     minutes, seconds = divmod(int(elapsed), 60)

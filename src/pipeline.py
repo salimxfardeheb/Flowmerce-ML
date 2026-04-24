@@ -19,7 +19,6 @@ from config import (
     COLONNES_A_SUPPRIMER,
     COLONNES_CATEGORIEL,
     RESOLUTION_MAP,
-    SHIPPING_MAP,
     SEUIL_NA,
     TEST_SIZE,
     RANDOM_STATE,
@@ -127,40 +126,32 @@ def feature_engineering(df, percentile_risque=PERCENTILE_RISQUE):
 def split_train_test(df, test_size=TEST_SIZE, random_state=RANDOM_STATE):
 
     y_resolution = df["Resolution"]
-    y_shipping   = df["Return_Shipping_Paid_By"]
-    X = df.drop(columns=["Resolution", "Return_Shipping_Paid_By"])
+    X = df.drop(columns=["Resolution"])
 
-    # Stratification combinée
-    stratify_col = y_resolution.astype(str) + "_" + y_shipping.astype(str)
-
-    X_train, X_test, y_res_train, y_res_test, y_ship_train, y_ship_test = train_test_split(
-        X, y_resolution, y_shipping,
+    X_train, X_test, y_res_train, y_res_test = train_test_split(
+        X, y_resolution,
         test_size=test_size,
         random_state=random_state,
-        stratify=stratify_col,
+        stratify=y_resolution,
     )
 
     print(f"[Split] X_train: {X_train.shape}, X_test: {X_test.shape}")
-    print(f"[Split] y_resolution  — train: {y_res_train.shape}, test: {y_res_test.shape}")
-    print(f"[Split] y_shipping    — train: {y_ship_train.shape}, test: {y_ship_test.shape}\n")
+    print(f"[Split] y_resolution  — train: {y_res_train.shape}, test: {y_res_test.shape}\n")
 
-    return X_train, X_test, y_res_train, y_res_test, y_ship_train, y_ship_test
+    return X_train, X_test, y_res_train, y_res_test
 
 
 # ═══════════════════════════════════════════════════════════════
 #  ÉTAPE 4 — ENCODING  (fit sur train, transform sur test)
 # ═══════════════════════════════════════════════════════════════
-def encoder_targets(y_res_train, y_res_test, y_ship_train, y_ship_test):
+def encoder_targets(y_res_train, y_res_test):
 
-    y_res_train  = y_res_train.map(RESOLUTION_MAP)
-    y_res_test   = y_res_test.map(RESOLUTION_MAP)
-    y_ship_train = y_ship_train.map(SHIPPING_MAP)
-    y_ship_test  = y_ship_test.map(SHIPPING_MAP)
+    y_res_train = y_res_train.map(RESOLUTION_MAP)
+    y_res_test  = y_res_test.map(RESOLUTION_MAP)
 
-    print(f"[Encoding] Resolution       : {RESOLUTION_MAP}")
-    print(f"[Encoding] Shipping_Paid_By : {SHIPPING_MAP}")
+    print(f"[Encoding] Resolution : {RESOLUTION_MAP}")
 
-    return y_res_train, y_res_test, y_ship_train, y_ship_test
+    return y_res_train, y_res_test
 
 
 def encoder_features(X_train, X_test):
@@ -169,8 +160,8 @@ def encoder_features(X_train, X_test):
     StandardScaler sur les colonnes numériques.
     Retourne X_train, X_test encodés + encoder + scaler pour la production.
     """
-    cols_presentes = [c for c in COLONNES_CATEGORIEL if c in X_train.columns]
-    cols_numeriques = [c for c in X_train.columns if c not in cols_presentes]
+    cols_presentes  = X_train.select_dtypes(exclude=[np.number]).columns.tolist()
+    cols_numeriques = X_train.select_dtypes(include=[np.number]).columns.tolist()
 
     # --- OneHotEncoder fitté sur train ---
     ohe = OneHotEncoder(
@@ -238,22 +229,18 @@ if __name__ == "__main__":
     df, seuil_risque = feature_engineering(df, percentile_risque=PERCENTILE_RISQUE)
 
     # --- Étape 3 : Split (AVANT encoding) ---
-    X_train, X_test, y_res_train, y_res_test, y_ship_train, y_ship_test = split_train_test(df)
+    X_train, X_test, y_res_train, y_res_test = split_train_test(df)
 
     # --- Étape 4 : Encoding (fit sur train uniquement) ---
-    y_res_train, y_res_test, y_ship_train, y_ship_test = encoder_targets(
-        y_res_train, y_res_test, y_ship_train, y_ship_test
-    )
+    y_res_train, y_res_test = encoder_targets(y_res_train, y_res_test)
     X_train, X_test, ohe, scaler = encoder_features(X_train, X_test)
 
     # --- Sauvegarde des splits ---
     splits = {
-        "X_train": X_train,
-        "X_test": X_test,
+        "X_train":     X_train,
+        "X_test":      X_test,
         "y_res_train": y_res_train,
-        "y_res_test": y_res_test,
-        "y_ship_train": y_ship_train,
-        "y_ship_test": y_ship_test,
+        "y_res_test":  y_res_test,
     }
 
     with open(SPLITS_FILE, "wb") as f:
@@ -265,11 +252,11 @@ if __name__ == "__main__":
 
     # Seuil P75 + métadonnées de training → artefact dédié
     training_params = {
-        "seuil_risque": seuil_risque,
-        "percentile_risque": PERCENTILE_RISQUE,
-        "seuil_na": SEUIL_NA,
-        "test_size": TEST_SIZE,
-        "random_state": RANDOM_STATE,
+        "seuil_risque":        seuil_risque,
+        "percentile_risque":   PERCENTILE_RISQUE,
+        "seuil_na":            SEUIL_NA,
+        "test_size":           TEST_SIZE,
+        "random_state":        RANDOM_STATE,
         "colonnes_supprimees": COLONNES_A_SUPPRIMER,
     }
     joblib.dump(training_params, TRAINING_PARAMS)

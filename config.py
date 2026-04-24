@@ -14,7 +14,7 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR         = os.path.join(PROJECT_ROOT, "data")
 RAW_DATA_DIR     = os.path.join(DATA_DIR, "raw")
 PROCESSED_DIR    = os.path.join(DATA_DIR, "processed")
-RAW_DATASET      = os.path.join(RAW_DATA_DIR, "ecommerce_returns_smart_dataset.csv")
+RAW_DATASET      = os.path.join(RAW_DATA_DIR, "flowmerce_dataset_v2.csv")
 SPLITS_FILE      = os.path.join(PROCESSED_DIR, "splits_encoded.pkl")
 
 # Models
@@ -49,6 +49,7 @@ COLONNES_CATEGORIEL = [
     "Shipping_Method",
     "Return_Reason",
     "reason_x_policy",
+     "reason_x_policy", 
 ]
 
 
