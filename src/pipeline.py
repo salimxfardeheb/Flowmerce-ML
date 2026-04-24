@@ -117,7 +117,6 @@ def feature_engineering(df, percentile_risque=PERCENTILE_RISQUE):
     print(f"[FE] fraud_x_suspicious — non-zéro: {(df['fraud_x_suspicious'] > 0).sum()} "
           f"({(df['fraud_x_suspicious'] > 0).sum() / len(df) * 100:.1f}%)")
     print(f"[FE] hors_politique_fraud — {df['hors_politique_fraud'].sum()} cas")
-    print(f"[FE] insatisfait_recurrent — {df['insatisfait_recurrent'].sum()} cas\n")
 
     return df, seuil
 

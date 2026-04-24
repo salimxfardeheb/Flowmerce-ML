@@ -62,10 +62,6 @@ def appliquer_feature_engineering(df, seuil_risque):
         (df["Within_Return_Policy"] == 0) & (df["Fraud_Score"] > 50)
     ).astype(int)
 
-    df["insatisfait_recurrent"] = (
-        (df["Customer_Satisfaction"] <= 2) & (df["Customer_Past_Returns"] >= seuil_risque)
-    ).astype(int)
-
     return df
 
 

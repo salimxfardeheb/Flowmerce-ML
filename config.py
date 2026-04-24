@@ -36,6 +36,8 @@ COLONNES_A_SUPPRIMER = [
     "Product_Name",
     "Order_Date",
     "Return_Date",
+    "Refund_Amount_DA",
+    "Customer_Satisfaction"
 ]
 
 COLONNES_CATEGORIEL = [

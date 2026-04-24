@@ -57,8 +57,6 @@ class ReturnRequest(BaseModel):
     Shop_Return_Window_Days: int = Field(gt=0)
     Within_Return_Policy: int = Field(ge=0, le=1)
     Fraud_Score: float = Field(ge=0, le=100)
-    Customer_Satisfaction: int = Field(ge=1, le=5)
-    Is_Suspicious: int = Field(ge=0, le=1)
 
     class Config:
         json_schema_extra = {
@@ -80,8 +78,6 @@ class ReturnRequest(BaseModel):
                 "Shop_Return_Window_Days": 14,
                 "Within_Return_Policy": 1,
                 "Fraud_Score": 12.0,
-                "Customer_Satisfaction": 4,
-                "Is_Suspicious": 0,
             }
         }
 

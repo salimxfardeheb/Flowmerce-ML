@@ -1,4 +1,5 @@
 import pickle
+import time
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
@@ -168,6 +169,8 @@ def sauvegarder(objet, nom_fichier):
 # ═══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
 
+    t_total = time.time()
+
     print("=" * 60)
     print("  PIPELINE D'ENTRAÎNEMENT — FLOWMERCE (Random Forest)")
     print("=" * 60 + "\n")
@@ -188,6 +191,7 @@ if __name__ == "__main__":
     print("  MODÈLE 1 : RESOLUTION (Random Forest)")
     print("─" * 60 + "\n")
 
+    t1 = time.time()
     labels_res = list(RESOLUTION_LABELS.values())
     model_resolution = entrainer_random_forest(
         X_train, y_res_train, nom_modele="Resolution",
@@ -200,12 +204,14 @@ if __name__ == "__main__":
     res_ok = verifier_performance(
         metrics_res, "Resolution", seuil_f1=SEUIL_F1_RESOLUTION,
     )
+    print(f"  Temps modele Resolution : {time.time() - t1:.1f}s")
 
     # ── MODÈLE 2 — Shipping_Paid_By ──
     print("\n" + "─" * 60)
     print("  MODÈLE 2 : SHIPPING PAID BY (Random Forest)")
     print("─" * 60 + "\n")
 
+    t2 = time.time()
     labels_ship = list(SHIPPING_LABELS.values())
     model_shipping = entrainer_random_forest(
         X_train, y_ship_train, nom_modele="Shipping_Paid_By",
@@ -218,6 +224,7 @@ if __name__ == "__main__":
     ship_ok = verifier_performance(
         metrics_ship, "Shipping_Paid_By", seuil_f1=SEUIL_F1_SHIPPING,
     )
+    print(f"  Temps modele Shipping   : {time.time() - t2:.1f}s")
 
     # ── SAUVEGARDE CONDITIONNELLE ──
     print("\n" + "=" * 60)
@@ -244,4 +251,7 @@ if __name__ == "__main__":
     else:
         print(f"\n  Aucun modèle n'a passé les seuils — révision nécessaire.")
 
+    elapsed = time.time() - t_total
+    minutes, seconds = divmod(int(elapsed), 60)
+    print(f"\n  Temps total : {minutes}m {seconds:02d}s")
     print("=" * 60)
