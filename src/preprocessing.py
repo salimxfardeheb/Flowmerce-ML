@@ -54,10 +54,6 @@ def appliquer_feature_engineering(df, seuil_risque):
     df["fraud_score_bin"] = df["fraud_score_bin"].fillna(0).astype(int)
 
     # --- Features discriminantes ---
-    df["ratio_refund_prix"] = (
-        df["Refund_Amount_DA"] / (df["Product_Price_DA"] + 1)
-    ).round(3)
-
     df["fraud_x_suspicious"] = (
         df["Fraud_Score"] * df["Is_Suspicious"]
     ).round(2)

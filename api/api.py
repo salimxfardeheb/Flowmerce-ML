@@ -59,7 +59,6 @@ class ReturnRequest(BaseModel):
     Fraud_Score: float = Field(ge=0, le=100)
     Customer_Satisfaction: int = Field(ge=1, le=5)
     Is_Suspicious: int = Field(ge=0, le=1)
-    Refund_Amount_DA: float = Field(ge=0)
 
     class Config:
         json_schema_extra = {
@@ -83,7 +82,6 @@ class ReturnRequest(BaseModel):
                 "Fraud_Score": 12.0,
                 "Customer_Satisfaction": 4,
                 "Is_Suspicious": 0,
-                "Refund_Amount_DA": 15000.0,
             }
         }
 

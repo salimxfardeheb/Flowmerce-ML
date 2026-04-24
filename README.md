@@ -80,7 +80,7 @@ Colonnes supprimées car non prédictives ou identifiants :
 | `Product_Name` | Trop granulaire |
 | `Order_Date`, `Return_Date` | Remplacées par `Days_to_Return` |
 
-> Note : `Refund_Amount_DA`, `Customer_Satisfaction` et `Is_Suspicious` sont **gardés** comme features car ils apportent un signal discriminant pour les nouvelles features engineerées.
+> Note : `Customer_Satisfaction` et `Is_Suspicious` sont **gardés** comme features car ils apportent un signal discriminant pour les nouvelles features engineerées.
 
 Le nettoyage inclut également :
 - Suppression des doublons
@@ -96,7 +96,6 @@ Le nettoyage inclut également :
 | `client_a_risque` | `Customer_Past_Returns >= P75` | Détecte les clients avec historique de retours élevé |
 | `reason_x_policy` | `Return_Reason + "_" + Within_Return_Policy` | Interaction clé : même raison traitée différemment si hors délai |
 | `fraud_score_bin` | Découpage en 4 bins : 0 / 1-30 / 31-70 / 71-100 | Discrétise le score de fraude |
-| `ratio_refund_prix` | `Refund_Amount_DA / (Product_Price_DA + 1)` | Signal fort Refund vs Exchange |
 | `fraud_x_suspicious` | `Fraud_Score × Is_Suspicious` | Amplification du signal Reject |
 | `hors_politique_fraud` | `Within_Return_Policy == 0 AND Fraud_Score > 50` | Détecte les retours hors délai et suspects |
 | `insatisfait_recurrent` | `Customer_Satisfaction <= 2 AND Customer_Past_Returns >= P75` | Client insatisfait récurrent → Repair/Exchange |
@@ -264,8 +263,7 @@ Vérifie que les modèles et artefacts sont bien chargés.
   "Within_Return_Policy": 1,
   "Fraud_Score": 12.0,
   "Customer_Satisfaction": 4,
-  "Is_Suspicious": 0,
-  "Refund_Amount_DA": 15000.0
+  "Is_Suspicious": 0
 }
 ```
 
@@ -317,4 +315,3 @@ Vérifie que les modèles et artefacts sont bien chargés.
 | `Fraud_Score` | float | Score de fraude (0–100) |
 | `Customer_Satisfaction` | int | Satisfaction client (1–5) |
 | `Is_Suspicious` | int | Retour marqué comme suspect ? (0 ou 1) |
-| `Refund_Amount_DA` | float | Montant de remboursement en DA |

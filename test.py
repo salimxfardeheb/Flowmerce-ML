@@ -46,7 +46,6 @@ def run_tests():
         "Fraud_Score": 15.0,
         "Customer_Satisfaction": 2,
         "Is_Suspicious": 0,
-        "Refund_Amount_DA": 25000.0,
     }
     print_response(
         "POST /predict — Défectueux / client à risque",
@@ -76,7 +75,6 @@ def run_tests():
         "Fraud_Score": 5.0,
         "Customer_Satisfaction": 3,
         "Is_Suspicious": 0,
-        "Refund_Amount_DA": 0.0,
     }
     print_response(
         "POST /predict — Mauvaise taille / retour tardif",
@@ -106,7 +104,6 @@ def run_tests():
         "Fraud_Score": 95.0,
         "Customer_Satisfaction": 1,
         "Is_Suspicious": 1,
-        "Refund_Amount_DA": 0.0,
     }
     print_response(
         "POST /predict — Fraude probable",
