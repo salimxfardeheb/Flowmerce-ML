@@ -30,24 +30,37 @@ from config import (
     RESOLUTION_LABELS,
 )
 
+# ─────────────────────────────────────────────────────────────
+#  CONFIGURATION MACHINE
+#  i5-1135G7 : 4 cœurs physiques / 8 threads logiques
+# ─────────────────────────────────────────────────────────────
+N_JOBS_RF     = -1   # RF utilise tous les cœurs pour construire les arbres
+N_JOBS_SEARCH = 2    # 2 folds en parallèle max — évite la surcharge mémoire
+TUNE_SAMPLE   = 15000  # lignes pour le grid search (rapide)
+
 
 # ═══════════════════════════════════════════════════════════════
-#  ENTRAÎNEMENT (SMOTE + Random Forest)
+#  ENTRAÎNEMENT — PHASE 1 : grid search sur échantillon
 # ═══════════════════════════════════════════════════════════════
-def entrainer_random_forest(X_train, y_train, nom_modele="modele", n_iter=N_ITER_SEARCH):
-
+def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_SEARCH):
+    """
+    Recherche les meilleurs hyperparamètres sur un sous-échantillon (rapide).
+    Retourne les meilleurs params sans refit sur tout le dataset.
+    """
     param_distributions = {
-        "rf__n_estimators":      [100, 200, 300, 500],
-        "rf__max_depth":         [None, 10, 20, 30],
-        "rf__min_samples_split": [2, 5, 10],
-        "rf__min_samples_leaf":  [1, 2, 4],
-        "rf__max_features":      ["sqrt", "log2", 0.3],
-        "rf__class_weight":      ["balanced", "balanced_subsample", None],
+        "rf__n_estimators":      [200, 300],
+        "rf__max_depth":         [10, 15, None],
+        "rf__min_samples_split": [5, 10],
+        "rf__max_features":      ["sqrt", "log2"],
+        "rf__class_weight":      ["balanced", "balanced_subsample"],
     }
 
     pipeline = ImbPipeline([
         ("smote", SMOTE(random_state=RANDOM_STATE)),
-        ("rf",    RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=1)),
+        ("rf",    RandomForestClassifier(
+            random_state=RANDOM_STATE,
+            n_jobs=N_JOBS_RF,       # ← tous les cœurs sur les arbres
+        )),
     ])
 
     search = RandomizedSearchCV(
@@ -57,21 +70,55 @@ def entrainer_random_forest(X_train, y_train, nom_modele="modele", n_iter=N_ITER
         cv=3,
         scoring="f1_weighted",
         random_state=RANDOM_STATE,
-        n_jobs=-1,
+        n_jobs=N_JOBS_SEARCH,       # ← 2 folds en parallèle
         verbose=1,
+        refit=False,                # ← pas de refit ici, on le fait sur 50k
     )
 
+    dist = dict(pd.Series(y_tune).value_counts())
+    print(f"[Tuning] Distribution échantillon ({len(y_tune)} lignes) — {nom_modele} : {dist}")
+
+    search.fit(X_tune, y_tune)
+
+    best = search.best_params_
+    print(f"[Tuning] Meilleurs params ({nom_modele}) :")
+    for k, v in best.items():
+        print(f"         {k}: {v}")
+    print(f"[Tuning] F1 CV (weighted) : {search.best_score_:.4f}\n")
+
+    return best
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ENTRAÎNEMENT — PHASE 2 : refit final sur dataset complet
+# ═══════════════════════════════════════════════════════════════
+def entrainer_final(X_train, y_train, best_params, nom_modele="modele"):
+    """
+    Entraîne le pipeline final avec les meilleurs params sur tout le dataset.
+    """
+    # Extraire les params RF (retirer le préfixe "rf__")
+    rf_params = {
+        k.replace("rf__", ""): v
+        for k, v in best_params.items()
+        if k.startswith("rf__")
+    }
+
     dist = dict(pd.Series(y_train).value_counts())
-    print(f"[Training] Distribution originale — {nom_modele} : {dist}")
+    print(f"[Training] Distribution complète — {nom_modele} : {dist}")
 
-    search.fit(X_train, y_train)
+    pipeline_final = ImbPipeline([
+        ("smote", SMOTE(random_state=RANDOM_STATE)),
+        ("rf",    RandomForestClassifier(
+            **rf_params,
+            random_state=RANDOM_STATE,
+            n_jobs=N_JOBS_RF,
+        )),
+    ])
 
-    print(f"[Training] Modèle '{nom_modele}' — meilleurs params :")
-    for k, v in search.best_params_.items():
-        print(f"           {k}: {v}")
-    print(f"[Training] F1 CV (weighted) : {search.best_score_:.4f}\n")
+    pipeline_final.fit(X_train, y_train)
+    print(f"[Training] Refit final terminé sur {len(y_train)} lignes.\n")
 
-    return search.best_estimator_
+    return pipeline_final
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -111,8 +158,8 @@ def evaluer_modele(model, X_test, y_test, nom_modele="modele", labels=None):
 # ═══════════════════════════════════════════════════════════════
 def afficher_feature_importances(model, feature_names, top_n=20):
 
-    rf_model = model.named_steps["rf"]
-    importances = pd.Series(
+    rf_model     = model.named_steps["rf"]
+    importances  = pd.Series(
         rf_model.feature_importances_,
         index=feature_names
     ).sort_values(ascending=False)
@@ -172,7 +219,7 @@ if __name__ == "__main__":
     print("  PIPELINE D'ENTRAÎNEMENT — FLOWMERCE (Random Forest)")
     print("=" * 60 + "\n")
 
-    # --- Charger les splits encodés ---
+    # ── Charger les splits encodés ────────────────────────────
     with open(SPLITS_FILE, "rb") as f:
         splits = pickle.load(f)
 
@@ -181,16 +228,33 @@ if __name__ == "__main__":
     y_res_train = splits["y_res_train"]
     y_res_test  = splits["y_res_test"]
 
-    # ── MODÈLE — Resolution ──
+    # ── MODÈLE — Resolution ───────────────────────────────────
     print("\n" + "─" * 60)
     print("  MODÈLE : RESOLUTION (Random Forest)")
     print("─" * 60 + "\n")
 
     t1 = time.time()
     labels_res = list(RESOLUTION_LABELS.values())
-    model_resolution = entrainer_random_forest(
-        X_train, y_res_train, nom_modele="Resolution",
+
+    # Phase 1 : grid search rapide sur sous-échantillon
+    print(f"[Phase 1] Grid search sur {TUNE_SAMPLE} lignes...\n")
+    idx_tune  = np.random.RandomState(RANDOM_STATE).choice(
+        len(y_res_train), size=min(TUNE_SAMPLE, len(y_res_train)), replace=False
     )
+    X_tune = X_train.iloc[idx_tune]
+    y_tune = pd.Series(y_res_train).iloc[idx_tune]
+
+    best_params = trouver_meilleurs_params(
+        X_tune, y_tune, nom_modele="Resolution"
+    )
+
+    # Phase 2 : refit final sur 100% des données d'entraînement
+    print(f"[Phase 2] Refit final sur {len(y_res_train)} lignes...\n")
+    model_resolution = entrainer_final(
+        X_train, y_res_train, best_params, nom_modele="Resolution"
+    )
+
+    # Évaluation
     metrics_res = evaluer_modele(
         model_resolution, X_test, y_res_test,
         nom_modele="Resolution", labels=labels_res,
@@ -199,9 +263,11 @@ if __name__ == "__main__":
     res_ok = verifier_performance(
         metrics_res, "Resolution", seuil_f1=SEUIL_F1_RESOLUTION,
     )
-    print(f"  Temps modèle Resolution : {time.time() - t1:.1f}s")
 
-    # ── SAUVEGARDE CONDITIONNELLE ──
+    t_modele = time.time() - t1
+    print(f"  Temps modèle Resolution : {t_modele:.1f}s")
+
+    # ── SAUVEGARDE CONDITIONNELLE ─────────────────────────────
     print("\n" + "=" * 60)
     print("  BILAN FINAL")
     print("=" * 60)

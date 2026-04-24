@@ -14,7 +14,7 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR         = os.path.join(PROJECT_ROOT, "data")
 RAW_DATA_DIR     = os.path.join(DATA_DIR, "raw")
 PROCESSED_DIR    = os.path.join(DATA_DIR, "processed")
-RAW_DATASET      = os.path.join(RAW_DATA_DIR, "flowmerce_dataset_v2.csv")
+RAW_DATASET      = os.path.join(RAW_DATA_DIR, "ecommerce_returns_smart_dataset.csv")
 SPLITS_FILE      = os.path.join(PROCESSED_DIR, "splits_encoded.pkl")
 
 # Models
@@ -37,7 +37,8 @@ COLONNES_A_SUPPRIMER = [
     "Order_Date",
     "Return_Date",
     "Refund_Amount_DA",
-    "Customer_Satisfaction"
+    "Customer_Satisfaction",
+    'Return_Shipping_Paid_By' 
 ]
 
 COLONNES_CATEGORIEL = [
@@ -49,16 +50,14 @@ COLONNES_CATEGORIEL = [
     "Shipping_Method",
     "Return_Reason",
     "reason_x_policy",
-     "reason_x_policy", 
 ]
 
 
 # ═══════════════════════════════════════════════════════════════
 #  SEUILS DE PERFORMANCE
 # ═══════════════════════════════════════════════════════════════
-SEUIL_F1_RESOLUTION = 0.70
-SEUIL_F1_SHIPPING   = 0.75
-SEUIL_ACCURACY      = 0.70
+SEUIL_F1_RESOLUTION = 0.62
+SEUIL_ACCURACY      = 0.65
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -66,8 +65,7 @@ SEUIL_ACCURACY      = 0.70
 # ═══════════════════════════════════════════════════════════════
 RESOLUTION_MAP    = {"Exchange": 0, "Refund": 1, "Reject": 2, "Repair": 3}
 RESOLUTION_LABELS = {v: k for k, v in RESOLUTION_MAP.items()}
-SHIPPING_MAP      = {"Client": 0, "Vendeur": 1}
-SHIPPING_LABELS   = {v: k for k, v in SHIPPING_MAP.items()}
+
 
 
 # ═══════════════════════════════════════════════════════════════

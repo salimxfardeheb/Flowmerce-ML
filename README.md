@@ -33,11 +33,10 @@ Flowmerce/
 │   └── training.py                               # Entraînement, évaluation, sauvegarde
 │
 ├── api/
-│   ├── api.py                                    # API FastAPI v2.0.0 — endpoint /predict
-│   └── test_api.py                               # Tests de l'API via HTTP
+│   └── api.py                                    # API FastAPI v2.0.0 — endpoint /predict
+│   
 │
 ├── config.py                                     # Configuration centralisée (chemins, constantes)
-├── test.py                                       # Tests directs des modèles (sans API)
 ├── requirements.txt
 └── README.md
 ```
