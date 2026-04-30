@@ -19,6 +19,9 @@ from config import (
 )
 from src.preprocessing import preprocess
 
+from dotenv import load_dotenv
+
+
 
 # ═══════════════════════════════════════════════════════════════
 #  CHARGEMENT DES ARTEFACTS
@@ -35,7 +38,8 @@ seuil_risque = training_params["seuil_risque"]
 # ═══════════════════════════════════════════════════════════════
 #  AUTHENTIFICATION — X-Internal-Key
 # ═══════════════════════════════════════════════════════════════
-INTERNAL_KEY   = os.environ.get("INTERNAL_API_KEY", "dev-internal-key")
+load_dotenv()
+INTERNAL_KEY   = os.environ.get("INTERNAL_API_KEY", "X-internal-key")
 api_key_header = APIKeyHeader(name="X-Internal-Key", auto_error=False)
 
 def verify_internal_key(api_key: str = Security(api_key_header)):
