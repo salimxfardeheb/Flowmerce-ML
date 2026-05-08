@@ -1,0 +1,45 @@
+# ═══════════════════════════════════════════════════════════════
+#  Docker Compose — Flowmerce-ML
+#  2 services : train (one-shot) et api (permanent)
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ─────────────────────────────────────────────────────────────
+  #  SERVICE TRAIN
+  #  Lance pipeline.py puis training.py, puis s'arrête.
+  #  Usage : docker compose run train
+  # ─────────────────────────────────────────────────────────────
+  train:
+    build: .
+    # Override la commande par défaut (uvicorn) du Dockerfile
+    # && = "si la première commande réussit, lance la deuxième"
+    command: bash -c "python src/pipeline.py && python src/training.py"
+    volumes:
+      # Monte ton dossier data/raw/ local → /app/data/raw/ dans le container
+      # Le container peut lire le CSV sans qu'il soit dans l'image
+      - ./data/raw:/app/data/raw
+
+      # Monte data/processed/ → le container écrit splits_encoded.pkl ici
+      # et ça persiste sur ton disque Windows
+      - ./data/processed:/app/data/processed
+
+      # Monte models/ → les .joblib générés atterrissent sur ton disque
+      - ./models:/app/models
+
+  # ─────────────────────────────────────────────────────────────
+  #  SERVICE API
+  #  Lance FastAPI en continu.
+  #  Usage : docker compose up api
+  # ─────────────────────────────────────────────────────────────
+  api:
+    build: .
+    # Pas de "command:" → utilise le CMD du Dockerfile (uvicorn)
+    ports:
+      # localhost:8000 sur Windows → port 8000 dans le container
+      - "8000:8000"
+    volumes:
+      # L'API a besoin des modèles pour prédire
+      - ./models:/app/models
+    # Redémarre automatiquement si l'API crash
+    restart: unless-stopped
