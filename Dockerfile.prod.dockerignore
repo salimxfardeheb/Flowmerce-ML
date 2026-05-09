@@ -1,8 +1,7 @@
-# Données et modèles — montés via volumes
+# Données brutes — pas besoin en prod (serving only)
 data/
-models/
 
-# Secrets — JAMAIS dans l'image
+# Secrets
 .env
 *.env
 api/.env
@@ -21,9 +20,10 @@ env/
 
 # Docker
 Dockerfile
+Dockerfile.prod
 docker-compose.yml
-docker-compose.prod.yml
 .dockerignore
+Dockerfile.prod.dockerignore
 
 # IDE / OS
 .vscode/
