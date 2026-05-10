@@ -48,8 +48,8 @@ def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_
     Retourne les meilleurs params sans refit sur tout le dataset.
     """
     param_distributions = {
-        "rf__n_estimators":      [200, 300],
-        "rf__max_depth":         [10, 15, None],
+        "rf__n_estimators":      [50, 80],
+        "rf__max_depth":         [12, 18],
         "rf__min_samples_split": [5, 10],
         "rf__max_features":      ["sqrt", "log2"],
         "rf__class_weight":      ["balanced", "balanced_subsample"],
@@ -204,7 +204,7 @@ def verifier_performance(metrics, nom_modele, seuil_f1, seuil_acc=SEUIL_ACCURACY
 
 
 def sauvegarder(objet, nom_fichier):
-    joblib.dump(objet, nom_fichier)
+    joblib.dump(objet, nom_fichier, compress=3)
     print(f"[Sauvegarde] {nom_fichier}")
 
 
