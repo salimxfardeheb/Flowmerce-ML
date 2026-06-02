@@ -1,0 +1,38 @@
+============================================================
+  RAPPORT D'ENTRAINEMENT — 20260602_155954
+============================================================
+
+METRIQUES
+----------------------------------------
+  Accuracy  : 0.7116
+  Precision : 0.6991
+  Recall    : 0.7116
+  F1-score  : 0.6992
+
+CLASSIFICATION REPORT
+----------------------------------------
+              precision    recall  f1-score   support
+
+    Exchange       0.81      0.77      0.79      5635
+      Refund       0.17      0.00      0.00       449
+      Reject       0.60      0.67      0.63      2156
+      Repair       0.60      0.76      0.67      1760
+
+    accuracy                           0.71     10000
+   macro avg       0.54      0.55      0.52     10000
+weighted avg       0.70      0.71      0.70     10000
+
+MATRICE DE CONFUSION
+----------------------------------------
+          Exchange  Refund  Reject  Repair
+Exchange      4324       1     723     587
+Refund         265       1      64     119
+Reject         519       1    1448     188
+Repair         217       3     197    1343
+
+TEMPS D'EXECUTION
+----------------------------------------
+  Phase 1 - Grid search     : 144m 58s
+  Phase 2 - Refit final     : 0m 21s
+  Total modele              : 145m 20s
+

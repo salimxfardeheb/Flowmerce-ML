@@ -1,8 +1,9 @@
 import pickle
 import time
+import threading
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
+from lightgbm import LGBMClassifier
 from sklearn.model_selection import RandomizedSearchCV
 from sklearn.metrics import (
     accuracy_score,
@@ -34,9 +35,42 @@ from config import (
 #  CONFIGURATION MACHINE
 #  i5-1135G7 : 4 cœurs physiques / 8 threads logiques
 # ─────────────────────────────────────────────────────────────
-N_JOBS_RF     = -1   # RF utilise tous les cœurs pour construire les arbres
+N_JOBS_LGBM   = -1   # LightGBM utilise tous les cœurs pour construire les arbres
 N_JOBS_SEARCH = 2    # 2 folds en parallèle max — évite la surcharge mémoire
-TUNE_SAMPLE   = 15000  # lignes pour le grid search (rapide)
+TUNE_SAMPLE   = 30000  # lignes pour le grid search (rapide)
+
+
+# ═══════════════════════════════════════════════════════════════
+#  TIMER TEMPS RÉEL
+# ═══════════════════════════════════════════════════════════════
+class LiveTimer:
+    """Affiche le temps écoulé en continu sur le terminal pendant une phase."""
+
+    def __init__(self, label):
+        self.label = label
+        self._stop = threading.Event()
+        self._t0 = time.time()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+
+    def _run(self):
+        while not self._stop.is_set():
+            elapsed = time.time() - self._t0
+            m, s = divmod(int(elapsed), 60)
+            print(f"\r  [TIMER] {self.label} — {m}m {s:02d}s", end="", flush=True)
+            time.sleep(1)
+
+    def start(self):
+        self._t0 = time.time()
+        self._thread.start()
+        return self
+
+    def stop(self):
+        self._stop.set()
+        self._thread.join()
+        elapsed = time.time() - self._t0
+        m, s = divmod(int(elapsed), 60)
+        print(f"\r  [OK]    {self.label} — {m}m {s:02d}s", flush=True)
+        return elapsed
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -48,18 +82,23 @@ def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_
     Retourne les meilleurs params sans refit sur tout le dataset.
     """
     param_distributions = {
-        "rf__n_estimators":      [50, 80],
-        "rf__max_depth":         [12, 18],
-        "rf__min_samples_split": [5, 10],
-        "rf__max_features":      ["sqrt", "log2"],
-        "rf__class_weight":      ["balanced", "balanced_subsample"],
+        "lgbm__n_estimators":      [200, 400, 600],
+        "lgbm__num_leaves":        [31, 63, 127],
+        "lgbm__max_depth":         [-1, 12, 20],
+        "lgbm__learning_rate":     [0.02, 0.05, 0.1],
+        "lgbm__min_child_samples": [10, 20, 50],
+        "lgbm__subsample":         [0.8, 1.0],
+        "lgbm__colsample_bytree":  [0.8, 1.0],
     }
 
     pipeline = ImbPipeline([
         ("smote", SMOTE(random_state=RANDOM_STATE)),
-        ("rf",    RandomForestClassifier(
+        ("lgbm",  LGBMClassifier(
+            objective="multiclass",
+            class_weight="balanced",   # ← aide les classes rares (Refund)
             random_state=RANDOM_STATE,
-            n_jobs=N_JOBS_RF,       # ← tous les cœurs sur les arbres
+            n_jobs=N_JOBS_LGBM,        # ← tous les cœurs sur les arbres
+            verbose=-1,
         )),
     ])
 
@@ -67,7 +106,7 @@ def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_
         pipeline,
         param_distributions,
         n_iter=n_iter,
-        cv=3,
+        cv=5,
         scoring="f1_weighted",
         random_state=RANDOM_STATE,
         n_jobs=N_JOBS_SEARCH,       # ← 2 folds en parallèle
@@ -96,11 +135,11 @@ def entrainer_final(X_train, y_train, best_params, nom_modele="modele"):
     """
     Entraîne le pipeline final avec les meilleurs params sur tout le dataset.
     """
-    # Extraire les params RF (retirer le préfixe "rf__")
-    rf_params = {
-        k.replace("rf__", ""): v
+    # Extraire les params LightGBM (retirer le préfixe "lgbm__")
+    lgbm_params = {
+        k.replace("lgbm__", ""): v
         for k, v in best_params.items()
-        if k.startswith("rf__")
+        if k.startswith("lgbm__")
     }
 
     dist = dict(pd.Series(y_train).value_counts())
@@ -108,10 +147,13 @@ def entrainer_final(X_train, y_train, best_params, nom_modele="modele"):
 
     pipeline_final = ImbPipeline([
         ("smote", SMOTE(random_state=RANDOM_STATE)),
-        ("rf",    RandomForestClassifier(
-            **rf_params,
+        ("lgbm",  LGBMClassifier(
+            **lgbm_params,
+            objective="multiclass",
+            class_weight="balanced",
             random_state=RANDOM_STATE,
-            n_jobs=N_JOBS_RF,
+            n_jobs=N_JOBS_LGBM,
+            verbose=-1,
         )),
     ])
 
@@ -158,16 +200,21 @@ def evaluer_modele(model, X_test, y_test, nom_modele="modele", labels=None):
 # ═══════════════════════════════════════════════════════════════
 def afficher_feature_importances(model, feature_names, top_n=20):
 
-    rf_model     = model.named_steps["rf"]
+    lgbm_model   = model.named_steps["lgbm"]
     importances  = pd.Series(
-        rf_model.feature_importances_,
+        lgbm_model.feature_importances_,
         index=feature_names
     ).sort_values(ascending=False)
+
+    # LightGBM renvoie un nombre de splits (entiers) — on normalise pour l'affichage
+    total = importances.sum()
+    importances_norm = importances / total if total else importances
 
     print(f"\n{'─' * 50}")
     print(f"  TOP {top_n} FEATURE IMPORTANCES")
     print(f"{'─' * 50}")
-    for i, (feat, imp) in enumerate(importances.head(top_n).items(), 1):
+    for i, feat in enumerate(importances.head(top_n).index, 1):
+        imp = importances_norm[feat]
         bar = "█" * int(imp * 200)
         print(f"  {i:2d}. {feat:<35s} {imp:.4f}  {bar}")
     print(f"{'─' * 50}\n")
@@ -209,6 +256,50 @@ def sauvegarder(objet, nom_fichier):
 
 
 # ═══════════════════════════════════════════════════════════════
+#  ENREGISTREMENT DES RÉSULTATS (log horodaté)
+# ═══════════════════════════════════════════════════════════════
+def sauvegarder_rapport(metrics, y_test, y_pred, labels, temps_phases, logs_dir):
+    """Sauvegarde métriques + classification report dans un .txt horodaté."""
+    from datetime import datetime
+
+    os.makedirs(logs_dir, exist_ok=True)
+    horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
+    chemin = os.path.join(logs_dir, f"training_{horodatage}.txt")
+
+    with open(chemin, "w", encoding="utf-8") as f:
+        f.write("=" * 60 + "\n")
+        f.write(f"  RAPPORT D'ENTRAINEMENT — {horodatage}\n")
+        f.write("=" * 60 + "\n\n")
+
+        f.write("METRIQUES\n")
+        f.write("-" * 40 + "\n")
+        f.write(f"  Accuracy  : {metrics['accuracy']:.4f}\n")
+        f.write(f"  Precision : {metrics['precision']:.4f}\n")
+        f.write(f"  Recall    : {metrics['recall']:.4f}\n")
+        f.write(f"  F1-score  : {metrics['f1']:.4f}\n\n")
+
+        f.write("CLASSIFICATION REPORT\n")
+        f.write("-" * 40 + "\n")
+        f.write(classification_report(y_test, y_pred, target_names=labels, zero_division=0))
+        f.write("\n")
+
+        f.write("MATRICE DE CONFUSION\n")
+        f.write("-" * 40 + "\n")
+        cm = confusion_matrix(y_test, y_pred)
+        f.write(pd.DataFrame(cm, index=labels, columns=labels).to_string())
+        f.write("\n\n")
+
+        f.write("TEMPS D'EXECUTION\n")
+        f.write("-" * 40 + "\n")
+        for label, duree in temps_phases.items():
+            m, s = divmod(int(duree), 60)
+            f.write(f"  {label:<25s} : {m}m {s:02d}s\n")
+        f.write("\n")
+
+    print(f"[Rapport] Sauvegarde -> {chemin}")
+
+
+# ═══════════════════════════════════════════════════════════════
 #  MAIN
 # ═══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
@@ -216,7 +307,7 @@ if __name__ == "__main__":
     t_total = time.time()
 
     print("=" * 60)
-    print("  PIPELINE D'ENTRAÎNEMENT — FLOWMERCE (Random Forest)")
+    print("  PIPELINE D'ENTRAÎNEMENT — FLOWMERCE (LightGBM)")
     print("=" * 60 + "\n")
 
     # ── Charger les splits encodés ────────────────────────────
@@ -230,7 +321,7 @@ if __name__ == "__main__":
 
     # ── MODÈLE — Resolution ───────────────────────────────────
     print("\n" + "─" * 60)
-    print("  MODÈLE : RESOLUTION (Random Forest)")
+    print("  MODÈLE : RESOLUTION (LightGBM)")
     print("─" * 60 + "\n")
 
     t1 = time.time()
@@ -244,15 +335,19 @@ if __name__ == "__main__":
     X_tune = X_train.iloc[idx_tune]
     y_tune = pd.Series(y_res_train).iloc[idx_tune]
 
+    timer1 = LiveTimer("Phase 1 — Grid search").start()
     best_params = trouver_meilleurs_params(
         X_tune, y_tune, nom_modele="Resolution"
     )
+    t_phase1 = timer1.stop()
 
     # Phase 2 : refit final sur 100% des données d'entraînement
     print(f"[Phase 2] Refit final sur {len(y_res_train)} lignes...\n")
+    timer2 = LiveTimer("Phase 2 — Refit final").start()
     model_resolution = entrainer_final(
         X_train, y_res_train, best_params, nom_modele="Resolution"
     )
+    t_phase2 = timer2.stop()
 
     # Évaluation
     metrics_res = evaluer_modele(
@@ -266,6 +361,20 @@ if __name__ == "__main__":
 
     t_modele = time.time() - t1
     print(f"  Temps modèle Resolution : {t_modele:.1f}s")
+
+    # Log horodaté des résultats
+    sauvegarder_rapport(
+        metrics=metrics_res,
+        y_test=y_res_test,
+        y_pred=model_resolution.predict(X_test),
+        labels=labels_res,
+        temps_phases={
+            "Phase 1 - Grid search": t_phase1,
+            "Phase 2 - Refit final": t_phase2,
+            "Total modele":          t_modele,
+        },
+        logs_dir=os.path.join(os.path.dirname(__file__), "..", "logs"),
+    )
 
     # ── SAUVEGARDE CONDITIONNELLE ─────────────────────────────
     print("\n" + "=" * 60)
