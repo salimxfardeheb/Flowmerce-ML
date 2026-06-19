@@ -1,6 +1,6 @@
 # Flowmerce — Système de Prédiction des Retours E-Commerce
 
-Flowmerce est un système de machine learning qui prédit automatiquement, pour chaque demande de retour e-commerce, **la résolution à appliquer** : `Exchange`, `Refund`, `Reject` ou `Repair`.
+Flowmerce est un système de machine learning qui prédit automatiquement, pour chaque demande de retour e-commerce, **la résolution à appliquer** : `Exchange`, `Reject` ou `Repair`.
 
 L'objectif est d'automatiser le traitement des retours pour réduire le temps de décision et standardiser les réponses.
 
@@ -29,7 +29,7 @@ Flowmerce/
 │   └── training.py                               # Entraînement, évaluation, sauvegarde
 │
 ├── api/
-│   ├── server.py                                 # API FastAPI v3.0.0 — endpoint /predict
+│   ├── server.py                                 # API FastAPI v4.0.0 — endpoint /predict
 │   └── .env                                       # Clé interne (INTERNAL_API_KEY)
 │
 ├── logs/                                          # Rapports d'entraînement horodatés
@@ -109,7 +109,7 @@ Le seuil P75 (`client_a_risque`) est calculé sur le dataset complet en phase d'
 
 ### Étape 4 — Encoding
 
-- **Target** : mapping manuel vers entiers (`Exchange=0`, `Refund=1`, `Reject=2`, `Repair=3`)
+- **Target** : mapping manuel vers entiers (`Exchange=0`, `Reject=1`, `Repair=2`)
 - **Features catégorielles** : One-Hot Encoding fitté sur le train uniquement (`handle_unknown="ignore"`)
 - **Features numériques** : StandardScaler fitté sur le train uniquement
 - Les artefacts `ohe_encoder.joblib`, `scaler.joblib` et `training_params.joblib` sont sauvegardés pour la production
@@ -145,7 +145,18 @@ Le modèle n'est sauvegardé que s'il atteint les seuils minimaux :
 
 | Modèle | F1-score minimum | Accuracy minimum |
 |---|---|---|
-| Resolution | 0.62 | 0.65 |
+| Resolution | 0.68 | 0.70 |
+
+### Règle métier — Escalade Refund
+
+Refund n'est pas une classe ML. C'est une décision humaine
+déclenchée par l'API si toutes ces conditions sont réunies :
+- Paiement électronique (BaridiMob, Carte Dahabia, Edahabia, CCP, Virement)
+- Retour dans les délais (Within_Return_Policy = 1)
+- Prédiction ML = Exchange
+
+Le champ escalade.refund_recommande passe à true
+et decision = manuelle_marchand.
 
 ---
 
@@ -238,7 +249,7 @@ Variables d'environnement utiles :
 
 ## API — Endpoints
 
-L'API est en version **3.0.0**. L'endpoint `/predict` est protégé par une clé interne passée dans l'en-tête HTTP **`X-Internal-Key`**.
+L'API est en version **4.0.0**. L'endpoint `/predict` est protégé par une clé interne passée dans l'en-tête HTTP **`X-Internal-Key`**.
 
 ### `GET /`
 Retourne les endpoints disponibles et la version.
@@ -302,7 +313,6 @@ Vérifie que le modèle et les artefacts sont bien chargés.
     "confidence": 0.4821,
     "probabilities": {
       "Exchange": 0.4821,
-      "Refund": 0.2134,
       "Reject": 0.1872,
       "Repair": 0.1173
     }
@@ -312,6 +322,11 @@ Vérifie que le modèle et les artefacts sont bien chargés.
     "fraud_score": 5.0,
     "seuil_risque": 5.0,
     "above_threshold": true
+  },
+  "escalade": {
+    "refund_recommande": false,
+    "raison": null,
+    "decision": null
   }
 }
 ```
