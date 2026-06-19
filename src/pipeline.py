@@ -51,6 +51,12 @@ def nettoyer_donnees(df, colonnes_a_supprimer=None, seuil_na=SEUIL_NA):
     df = df.drop_duplicates()
     print(f"[Nettoyage] Doublons supprimés : {avant - len(df)} (de {avant} à {len(df)})")
 
+    # Suppression des lignes Refund (classe retirée du périmètre ML)
+    if "Resolution" in df.columns:
+        avant_refund = len(df)
+        df = df[df["Resolution"] != "Refund"]
+        print(f"[Nettoyage] Lignes Refund supprimées : {avant_refund - len(df)} ({avant_refund} → {len(df)})")
+
     # 3) Suppression colonnes avec trop de NA (> seuil)
     total_na = df.isna().sum().sum()
     print(f"[Nettoyage] Valeurs manquantes totales : {total_na}")

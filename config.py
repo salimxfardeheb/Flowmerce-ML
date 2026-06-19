@@ -56,15 +56,17 @@ COLONNES_CATEGORIEL = [
 # ═══════════════════════════════════════════════════════════════
 #  SEUILS DE PERFORMANCE
 # ═══════════════════════════════════════════════════════════════
-SEUIL_F1_RESOLUTION = 0.62
-SEUIL_ACCURACY      = 0.65
+SEUIL_F1_RESOLUTION = 0.68
+SEUIL_ACCURACY      = 0.70
+
+PAYMENT_METHODS_ELECTRONIQUES = ["BaridiMob", "Carte Dahabia", "Edahabia", "CCP", "Virement"]
 
 
 # ═══════════════════════════════════════════════════════════════
 #  LABELS
 # ═══════════════════════════════════════════════════════════════
-RESOLUTION_MAP    = {"Exchange": 0, "Refund": 1, "Reject": 2, "Repair": 3}
-RESOLUTION_LABELS = {v: k for k, v in RESOLUTION_MAP.items()}
+RESOLUTION_MAP    = {"Exchange": 0, "Reject": 1, "Repair": 2}
+RESOLUTION_LABELS = {0: "Exchange", 1: "Reject", 2: "Repair"}
 
 
 

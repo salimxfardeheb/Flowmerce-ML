@@ -1,6 +1,7 @@
 import pickle
 import time
 import threading
+from datetime import datetime
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMClassifier
@@ -37,7 +38,7 @@ from config import (
 # ─────────────────────────────────────────────────────────────
 N_JOBS_LGBM   = -1   # LightGBM utilise tous les cœurs pour construire les arbres
 N_JOBS_SEARCH = 2    # 2 folds en parallèle max — évite la surcharge mémoire
-TUNE_SAMPLE   = 30000  # lignes pour le grid search (rapide)
+TUNE_SAMPLE   = 35000  # lignes pour le grid search (rapide)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -74,6 +75,25 @@ class LiveTimer:
 
 
 # ═══════════════════════════════════════════════════════════════
+#  CAPTURE DE LA SORTIE CONSOLE (tee vers un fichier log)
+# ═══════════════════════════════════════════════════════════════
+class Tee:
+    """Duplique tout ce qui est écrit sur stdout vers la console ET un fichier."""
+
+    def __init__(self, *flux):
+        self.flux = flux
+
+    def write(self, data):
+        for f in self.flux:
+            f.write(data)
+            f.flush()
+
+    def flush(self):
+        for f in self.flux:
+            f.flush()
+
+
+# ═══════════════════════════════════════════════════════════════
 #  ENTRAÎNEMENT — PHASE 1 : grid search sur échantillon
 # ═══════════════════════════════════════════════════════════════
 def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_SEARCH):
@@ -92,7 +112,7 @@ def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_
     }
 
     pipeline = ImbPipeline([
-        ("smote", SMOTE(random_state=RANDOM_STATE)),
+        ("smote", SMOTE(random_state=RANDOM_STATE, k_neighbors=5)),
         ("lgbm",  LGBMClassifier(
             objective="multiclass",
             class_weight="balanced",   # ← aide les classes rares (Refund)
@@ -146,7 +166,7 @@ def entrainer_final(X_train, y_train, best_params, nom_modele="modele"):
     print(f"[Training] Distribution complète — {nom_modele} : {dist}")
 
     pipeline_final = ImbPipeline([
-        ("smote", SMOTE(random_state=RANDOM_STATE)),
+        ("smote", SMOTE(random_state=RANDOM_STATE, k_neighbors=5)),
         ("lgbm",  LGBMClassifier(
             **lgbm_params,
             objective="multiclass",
@@ -256,55 +276,21 @@ def sauvegarder(objet, nom_fichier):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  ENREGISTREMENT DES RÉSULTATS (log horodaté)
-# ═══════════════════════════════════════════════════════════════
-def sauvegarder_rapport(metrics, y_test, y_pred, labels, temps_phases, logs_dir):
-    """Sauvegarde métriques + classification report dans un .txt horodaté."""
-    from datetime import datetime
-
-    os.makedirs(logs_dir, exist_ok=True)
-    horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
-    chemin = os.path.join(logs_dir, f"training_{horodatage}.txt")
-
-    with open(chemin, "w", encoding="utf-8") as f:
-        f.write("=" * 60 + "\n")
-        f.write(f"  RAPPORT D'ENTRAINEMENT — {horodatage}\n")
-        f.write("=" * 60 + "\n\n")
-
-        f.write("METRIQUES\n")
-        f.write("-" * 40 + "\n")
-        f.write(f"  Accuracy  : {metrics['accuracy']:.4f}\n")
-        f.write(f"  Precision : {metrics['precision']:.4f}\n")
-        f.write(f"  Recall    : {metrics['recall']:.4f}\n")
-        f.write(f"  F1-score  : {metrics['f1']:.4f}\n\n")
-
-        f.write("CLASSIFICATION REPORT\n")
-        f.write("-" * 40 + "\n")
-        f.write(classification_report(y_test, y_pred, target_names=labels, zero_division=0))
-        f.write("\n")
-
-        f.write("MATRICE DE CONFUSION\n")
-        f.write("-" * 40 + "\n")
-        cm = confusion_matrix(y_test, y_pred)
-        f.write(pd.DataFrame(cm, index=labels, columns=labels).to_string())
-        f.write("\n\n")
-
-        f.write("TEMPS D'EXECUTION\n")
-        f.write("-" * 40 + "\n")
-        for label, duree in temps_phases.items():
-            m, s = divmod(int(duree), 60)
-            f.write(f"  {label:<25s} : {m}m {s:02d}s\n")
-        f.write("\n")
-
-    print(f"[Rapport] Sauvegarde -> {chemin}")
-
-
-# ═══════════════════════════════════════════════════════════════
 #  MAIN
 # ═══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
 
     t_total = time.time()
+
+    # ── Démarrage de la capture console -> fichier log horodaté ──
+    logs_dir = os.path.join(os.path.dirname(__file__), "..", "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+    horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
+    chemin_log = os.path.join(logs_dir, f"training_{horodatage}.txt")
+
+    stdout_original = sys.stdout
+    log_file = open(chemin_log, "w", encoding="utf-8")
+    sys.stdout = Tee(stdout_original, log_file)
 
     print("=" * 60)
     print("  PIPELINE D'ENTRAÎNEMENT — FLOWMERCE (LightGBM)")
@@ -361,20 +347,7 @@ if __name__ == "__main__":
 
     t_modele = time.time() - t1
     print(f"  Temps modèle Resolution : {t_modele:.1f}s")
-
-    # Log horodaté des résultats
-    sauvegarder_rapport(
-        metrics=metrics_res,
-        y_test=y_res_test,
-        y_pred=model_resolution.predict(X_test),
-        labels=labels_res,
-        temps_phases={
-            "Phase 1 - Grid search": t_phase1,
-            "Phase 2 - Refit final": t_phase2,
-            "Total modele":          t_modele,
-        },
-        logs_dir=os.path.join(os.path.dirname(__file__), "..", "logs"),
-    )
+    print(f"[Rapport] Sauvegarde -> {chemin_log}")
 
     # ── SAUVEGARDE CONDITIONNELLE ─────────────────────────────
     print("\n" + "=" * 60)
@@ -393,3 +366,7 @@ if __name__ == "__main__":
     minutes, seconds = divmod(int(elapsed), 60)
     print(f"\n  Temps total : {minutes}m {seconds:02d}s")
     print("=" * 60)
+
+    # ── Fin de la capture console ──────────────────────────────
+    sys.stdout = stdout_original
+    log_file.close()

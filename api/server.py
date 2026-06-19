@@ -17,6 +17,7 @@ from config import (
     TRAINING_PARAMS,
     RESOLUTION_LABELS,
 )
+from config import PAYMENT_METHODS_ELECTRONIQUES
 from src.preprocessing import preprocess
 
 from dotenv import load_dotenv
@@ -104,7 +105,7 @@ class ReturnRequest(BaseModel):
 app = FastAPI(
     title="Flowmerce — API de Prediction des Retours",
     description="Prediction de la resolution d'un retour produit.",
-    version="3.0.0",
+    version="4.0.0",
 )
 
 
@@ -112,7 +113,7 @@ app = FastAPI(
 def root():
     return {
         "message": "Flowmerce Returns Prediction API",
-        "version": "3.0.0",
+        "version": "4.0.0",
         "endpoints": {
             "/predict": "POST — Predire la resolution du retour",
             "/health":  "GET  — Verifier l'etat de l'API",
@@ -158,6 +159,13 @@ def predict(
         resolution_label = RESOLUTION_LABELS.get(pred_res, str(pred_res))
         confidence       = round(float(max(proba_res)), 4)
 
+        # Règle métier escalade Refund
+        refund_eligible = (
+            request.Payment_Method in PAYMENT_METHODS_ELECTRONIQUES
+            and request.Within_Return_Policy == 1
+            and resolution_label == "Exchange"
+        )
+
         return {
             "resolution": {
                 "prediction":    resolution_label,
@@ -172,6 +180,11 @@ def predict(
                 "fraud_score":     float(row["Fraud_Score"].iloc[0]),
                 "seuil_risque":    seuil_risque,
                 "above_threshold": bool(row["Fraud_Score"].iloc[0] >= seuil_risque),
+            },
+            "escalade": {
+                "refund_recommande": refund_eligible,
+                "raison": "Paiement électronique + retour valide + échange prédit" if refund_eligible else None,
+                "decision": "manuelle_marchand" if refund_eligible else None,
             },
         }
 
