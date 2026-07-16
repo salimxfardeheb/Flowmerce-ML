@@ -10,6 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from config import (
     RAW_DATASET,
+    HF_DATASET_REPO,
+    HF_DATASET_FILE,
+    HF_TOKEN,
     SPLITS_FILE,
     MODELS_DIR,
     PROCESSED_DIR,
@@ -24,6 +27,35 @@ from config import (
     PERCENTILE_RISQUE,
 )
 from src.preprocessing import appliquer_feature_engineering
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ÉTAPE 0 — CHARGEMENT DES DONNÉES
+# ═══════════════════════════════════════════════════════════════
+def charger_donnees():
+    """
+    Charge le dataset brut :
+    - depuis Hugging Face Hub si HF_DATASET_REPO est défini
+      (le fichier est mis en cache localement par huggingface_hub)
+    - sinon depuis le CSV local (RAW_DATASET)
+    """
+    if HF_DATASET_REPO:
+        from huggingface_hub import hf_hub_download
+
+        chemin = hf_hub_download(
+            repo_id=HF_DATASET_REPO,
+            filename=HF_DATASET_FILE,
+            repo_type="dataset",
+            token=HF_TOKEN,
+        )
+        print(f"[Data] Dataset Hugging Face : {HF_DATASET_REPO} / {HF_DATASET_FILE}")
+    else:
+        chemin = RAW_DATASET
+        print(f"[Data] Dataset local : {chemin}")
+
+    df = pd.read_csv(chemin)
+    print(f"[Data] Chargé : {df.shape[0]} lignes, {df.shape[1]} colonnes\n")
+    return df
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -226,8 +258,10 @@ if __name__ == "__main__":
     os.makedirs(PROCESSED_DIR, exist_ok=True)
     os.makedirs(MODELS_DIR, exist_ok=True)
 
+    # --- Étape 0 : Chargement (Hugging Face Hub ou CSV local) ---
+    df = charger_donnees()
+
     # --- Étape 1 : Nettoyage ---
-    df = pd.read_csv(RAW_DATASET)
     df = nettoyer_donnees(df, colonnes_a_supprimer=COLONNES_A_SUPPRIMER, seuil_na=SEUIL_NA)
 
     # --- Étape 2 : Feature Engineering ---

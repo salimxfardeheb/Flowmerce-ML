@@ -5,6 +5,10 @@ Tous les chemins et constantes sont définis ici.
 
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # ═══════════════════════════════════════════════════════════════
 #  CHEMINS
 # ═══════════════════════════════════════════════════════════════
@@ -16,6 +20,12 @@ RAW_DATA_DIR     = os.path.join(DATA_DIR, "raw")
 PROCESSED_DIR    = os.path.join(DATA_DIR, "processed")
 RAW_DATASET      = os.path.join(RAW_DATA_DIR, "ecommerce_returns_smart_dataset.csv")
 SPLITS_FILE      = os.path.join(PROCESSED_DIR, "splits_encoded.pkl")
+
+# Hugging Face Hub — si HF_DATASET_REPO est défini, le pipeline
+# télécharge le dataset depuis le Hub au lieu du CSV local.
+HF_DATASET_REPO = os.environ.get("HF_DATASET_REPO")  # ex: "username/flowmerce-dataset"
+HF_DATASET_FILE = os.environ.get("HF_DATASET_FILE", "ecommerce_returns_smart_dataset.csv")
+HF_TOKEN        = os.environ.get("HF_TOKEN")         # requis si le dataset est privé
 
 # Models
 MODELS_DIR          = os.path.join(PROJECT_ROOT, "models")
