@@ -84,6 +84,7 @@ Colonnes supprimées car non prédictives, identifiants, ou sources de data leak
 | `Return_Shipping_Paid_By` | Ancienne cible, retirée du périmètre |
 
 Le nettoyage inclut également :
+
 - Suppression des doublons
 - Suppression des colonnes avec > 30 % de valeurs manquantes
 - Imputation des NA restants (médiane pour les numériques, mode pour les catégorielles)
@@ -151,6 +152,7 @@ Le modèle n'est sauvegardé que s'il atteint les seuils minimaux :
 
 Refund n'est pas une classe ML. C'est une décision humaine
 déclenchée par l'API si toutes ces conditions sont réunies :
+
 - Paiement électronique (BaridiMob, Carte Dahabia, Edahabia, CCP, Virement)
 - Retour dans les délais (Within_Return_Policy = 1)
 - Prédiction ML = Exchange
@@ -194,6 +196,7 @@ python src/pipeline.py
 ```
 
 Génère :
+
 - `data/processed/splits_encoded.pkl`
 - `models/ohe_encoder.joblib`
 - `models/scaler.joblib`
@@ -206,6 +209,7 @@ python src/training.py
 ```
 
 Génère (si les seuils de performance sont atteints) :
+
 - `models/model_resolution.joblib`
 - `models/train_columns.joblib`
 - `logs/training_<horodatage>.txt` (rapport d'entraînement)
@@ -226,6 +230,15 @@ uvicorn api.server:app --reload --port 8000
 
 L'interface Swagger est disponible sur `http://localhost:8000/docs`.
 
+### 4. Publier les modèles sur Hugging Face Hub
+
+```bash
+huggingface-cli login   # une seule fois, token avec accès Write
+python scripts/push_to_hub.py --repo-id <username>/flowmerce-resolution-model
+```
+
+Le repo-id peut aussi être défini via la variable d'environnement `HF_REPO_ID`.
+
 ---
 
 ## Docker
@@ -241,6 +254,7 @@ docker compose up api
 ```
 
 Variables d'environnement utiles :
+
 - `INTERNAL_API_KEY` (dans `api/.env`) — clé d'authentification de l'API
 - `API_PORT` — port exposé pour l'API (défaut `8000`)
 - `ENVIRONMENT` — `development` / `production`
@@ -252,9 +266,11 @@ Variables d'environnement utiles :
 L'API est en version **4.0.0**. L'endpoint `/predict` est protégé par une clé interne passée dans l'en-tête HTTP **`X-Internal-Key`**.
 
 ### `GET /`
+
 Retourne les endpoints disponibles et la version.
 
 ### `GET /health`
+
 Vérifie que le modèle et les artefacts sont bien chargés.
 
 ```json
