@@ -1,7 +1,12 @@
-import sys
 import os
+import csv
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from enum import Enum
+from typing import Optional
+from datetime import date
 
 from fastapi import FastAPI, HTTPException, Security, status
 from fastapi.security.api_key import APIKeyHeader
@@ -16,12 +21,12 @@ from config import (
     TRAIN_COLUMNS,
     TRAINING_PARAMS,
     RESOLUTION_LABELS,
+    INTERNAL_KEY,
+    RAW_DATASET_REAL,
+    CSV_COLUMNS,
 )
 from config import PAYMENT_METHODS_ELECTRONIQUES
 from src.preprocessing import preprocess
-
-from dotenv import load_dotenv
-
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -39,8 +44,6 @@ seuil_risque = training_params["seuil_risque"]
 # ═══════════════════════════════════════════════════════════════
 #  AUTHENTIFICATION — X-Internal-Key
 # ═══════════════════════════════════════════════════════════════
-load_dotenv()
-INTERNAL_KEY   = os.environ.get("INTERNAL_API_KEY", "X-internal-key")
 api_key_header = APIKeyHeader(name="X-Internal-Key", auto_error=False)
 
 def verify_internal_key(api_key: str = Security(api_key_header)):
@@ -53,9 +56,7 @@ def verify_internal_key(api_key: str = Security(api_key_header)):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  SCHÉMA DE LA REQUÊTE
-#  - Customer_Satisfaction retiré (data leakage)
-#  - Is_Suspicious calculé automatiquement depuis Fraud_Score
+#  SCHÉMA — /predict
 # ═══════════════════════════════════════════════════════════════
 class ReturnRequest(BaseModel):
     Customer_Gender:         str
@@ -100,6 +101,47 @@ class ReturnRequest(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════
+#  SCHÉMA — /reclamations
+# ═══════════════════════════════════════════════════════════════
+
+class ResolutionEnum(str, Enum):
+    Exchange = "Exchange"
+    Reject   = "Reject"
+    Repair   = "Repair"
+    Refund   = "Refund"
+
+
+class ReclamationInput(BaseModel):
+    Order_ID:                 str
+    Customer_ID:               str
+    Customer_Age:              int   = Field(ge=0)
+    Customer_Gender:           str
+    Customer_Wilaya:           str
+    Customer_Past_Returns:     int   = Field(ge=0)
+    Shop_Name:                 str
+    Product_Category:          str
+    Product_Name:              str
+    Product_Price_DA:          float = Field(gt=0)
+    Order_Quantity:            int   = Field(ge=1)
+    Total_Amount_DA:           float = Field(gt=0)
+    Payment_Method:            str
+    Shipping_Method:           str
+    Shipping_Cost_DA:          float = Field(ge=0)
+    Order_Date:                 date
+    Return_Date:                 date
+    Days_to_Return:              int   = Field(ge=0)
+    Shop_Return_Window_Days:     int   = Field(gt=0)
+    Within_Return_Policy:        int   = Field(ge=0, le=1)
+    Return_Reason:               str
+    Resolution:                   ResolutionEnum
+    Return_Shipping_Paid_By:      str
+    Refund_Amount_DA:             float = Field(ge=0)
+    Fraud_Score:                   float = Field(ge=0, le=100)
+    Is_Suspicious:                  int  = Field(ge=0, le=1)
+    Customer_Satisfaction:           Optional[int] = Field(default=None, ge=1, le=5)
+
+
+# ═══════════════════════════════════════════════════════════════
 #  APPLICATION FASTAPI
 # ═══════════════════════════════════════════════════════════════
 app = FastAPI(
@@ -115,8 +157,9 @@ def root():
         "message": "Flowmerce Returns Prediction API",
         "version": "4.0.0",
         "endpoints": {
-            "/predict": "POST — Predire la resolution du retour",
-            "/health":  "GET  — Verifier l'etat de l'API",
+            "/predict":      "POST — Predire la resolution du retour",
+            "/save_claim":   "POST — Inserer une reclamation reelle (avec resolution finale)",
+            "/health":       "GET  — Verifier l'etat de l'API",
         },
     }
 
@@ -159,13 +202,6 @@ def predict(
         resolution_label = RESOLUTION_LABELS.get(pred_res, str(pred_res))
         confidence       = round(float(max(proba_res)), 4)
 
-        # Règle métier escalade Refund
-        refund_eligible = (
-            request.Payment_Method in PAYMENT_METHODS_ELECTRONIQUES
-            and request.Within_Return_Policy == 1
-            and resolution_label == "Exchange"
-        )
-
         return {
             "resolution": {
                 "prediction":    resolution_label,
@@ -179,18 +215,41 @@ def predict(
                 "is_suspicious":   bool(row["Is_Suspicious"].iloc[0]),
                 "fraud_score":     float(row["Fraud_Score"].iloc[0]),
                 "seuil_risque":    seuil_risque,
-                "above_threshold": bool(row["Fraud_Score"].iloc[0] >= seuil_risque),
-            },
-            "escalade": {
-                "refund_recommande": refund_eligible,
-                "raison": "Paiement électronique + retour valide + échange prédit" if refund_eligible else None,
-                "decision": "manuelle_marchand" if refund_eligible else None,
+                "client_a_risque": bool(row["Customer_Past_Returns"].iloc[0] >= seuil_risque),
             },
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/save_claim", status_code=status.HTTP_201_CREATED)
+def ajouter_reclamation(
+    data: ReclamationInput,
+    _: str = Security(verify_internal_key),
+):
+    row_dict = data.model_dump()
+    row_dict["Resolution"] = row_dict["Resolution"].value  # Enum -> str
+
+    try:
+        fichier_existe = os.path.isfile(RAW_DATASET_REAL)
+
+        with open(RAW_DATASET_REAL, mode="a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+
+            if not fichier_existe:
+                writer.writeheader()
+
+            writer.writerow(row_dict)
+
+        return {
+            "status": "ok",
+            "message": "Réclamation insérée avec succès.",
+            "order_id": data.Order_ID,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
