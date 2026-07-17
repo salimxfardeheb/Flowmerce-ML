@@ -37,8 +37,8 @@ from config import (
 #  i5-1135G7 : 4 cœurs physiques / 8 threads logiques
 # ─────────────────────────────────────────────────────────────
 N_JOBS_LGBM   = -1   # LightGBM utilise tous les cœurs pour construire les arbres
-N_JOBS_SEARCH = 2    # 2 folds en parallèle max — évite la surcharge mémoire
-TUNE_SAMPLE   = 35000  # lignes pour le grid search (rapide)
+N_JOBS_SEARCH = 1    # 2 folds en parallèle max — évite la surcharge mémoire
+TUNE_SAMPLE   = 12000  # lignes pour le grid search
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -115,9 +115,9 @@ def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_
         ("smote", SMOTE(random_state=RANDOM_STATE, k_neighbors=5)),
         ("lgbm",  LGBMClassifier(
             objective="multiclass",
-            class_weight="balanced",   # ← aide les classes rares (Refund)
+            class_weight="balanced",
             random_state=RANDOM_STATE,
-            n_jobs=N_JOBS_LGBM,        # ← tous les cœurs sur les arbres
+            n_jobs=N_JOBS_LGBM,
             verbose=-1,
         )),
     ])

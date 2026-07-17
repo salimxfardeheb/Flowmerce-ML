@@ -158,7 +158,7 @@ def feature_engineering(df, percentile_risque=PERCENTILE_RISQUE):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  ÉTAPE 3 — SPLIT TRAIN / TEST  (avant encoding)
+#  ÉTAPE 3 — SPLIT TRAIN / TEST
 # ═══════════════════════════════════════════════════════════════
 def split_train_test(df, test_size=TEST_SIZE, random_state=RANDOM_STATE):
 

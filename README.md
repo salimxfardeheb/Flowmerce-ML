@@ -148,17 +148,6 @@ Le modèle n'est sauvegardé que s'il atteint les seuils minimaux :
 |---|---|---|
 | Resolution | 0.68 | 0.70 |
 
-### Règle métier — Escalade Refund
-
-Refund n'est pas une classe ML. C'est une décision humaine
-déclenchée par l'API si toutes ces conditions sont réunies :
-
-- Paiement électronique (BaridiMob, Carte Dahabia, Edahabia, CCP, Virement)
-- Retour dans les délais (Within_Return_Policy = 1)
-- Prédiction ML = Exchange
-
-Le champ escalade.refund_recommande passe à true
-et decision = manuelle_marchand.
 
 ---
 

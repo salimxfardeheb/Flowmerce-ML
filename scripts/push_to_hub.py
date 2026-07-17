@@ -6,8 +6,9 @@ Usage :
     python scripts/push_to_hub.py --repo-id <username>/flowmerce-resolution-model --private
     python scripts/push_to_hub.py --repo-id <username>/flowmerce-resolution-model --commit-message "Retrain LightGBM v2"
 
-Le repo-id peut aussi être fourni via la variable d'environnement HF_REPO_ID.
-Le token peut être fourni via HF_TOKEN, sinon celui mis en cache par
+Le repo-id peut aussi être fourni via la variable d'environnement HF_REPO_ID
+(ou dans un fichier .env à la racine du projet).
+Le token peut être fourni via HF_TOKEN (idem), sinon celui mis en cache par
 `huggingface-cli login` est utilisé.
 """
 
@@ -18,20 +19,24 @@ import sys
 from huggingface_hub import HfApi
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import MODELS_DIR
+from config import (
+    MODELS_DIR,
+    HF_REPO_ID,
+    HF_TOKEN,
+    )
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--repo-id",
-        default=os.environ.get("HF_REPO_ID"),
+        default=HF_REPO_ID,
         help="Identifiant du repo Hugging Face (ex: username/flowmerce-resolution-model). "
              "Peut aussi être défini via HF_REPO_ID.",
     )
     parser.add_argument(
         "--token",
-        default=os.environ.get("HF_TOKEN"),
+        default=HF_TOKEN,
         help="Token Hugging Face (Write access). Par défaut : token mis en cache par `huggingface-cli login`.",
     )
     parser.add_argument(

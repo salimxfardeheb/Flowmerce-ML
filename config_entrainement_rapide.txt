@@ -1,0 +1,42 @@
+CONFIGURATION — ENTRAÎNEMENT RAPIDE (< 10 MINUTES)
+===================================================
+
+Objectif
+--------
+Valider rapidement que le pipeline fonctionne et obtenir un modèle de référence.
+Cette configuration privilégie le temps d'itération ; elle ne doit pas être le
+modèle final de production.
+
+Modifications dans src/training.py
+----------------------------------
+N_JOBS_LGBM   = -1
+N_JOBS_SEARCH = 1
+TUNE_SAMPLE   = 12000
+
+Modifications dans config.py
+----------------------------
+N_ITER_SEARCH = 5
+
+Pourquoi
+-------
+- 5 configurations x 5 folds = 25 entraînements (au lieu de 150).
+- Un seul fold est lancé à la fois ; LightGBM peut utiliser tous les cœurs
+  sans concurrence entre processus.
+- Les 12 000 lignes suffisent pour une validation technique rapide.
+
+Durée attendue
+--------------
+- MacBook Air M4 branché : environ 5 à 10 minutes.
+- Colab CPU : environ 6 à 12 minutes selon la machine attribuée.
+
+Exécution
+---------
+.venv/bin/python src/pipeline.py
+.venv/bin/python src/training.py
+
+Vérifications avant utilisation
+-------------------------------
+- Vérifier que les métriques et la matrice de confusion sont cohérentes.
+- Ne pas publier ce modèle comme modèle final sans exécuter ensuite la
+  configuration performante.
+

@@ -25,12 +25,12 @@ SPLITS_FILE      = os.path.join(PROCESSED_DIR, "splits_encoded.pkl")
 # télécharge le dataset depuis le Hub au lieu du CSV local.
 HF_DATASET_REPO = os.environ.get("HF_DATASET_REPO")  # ex: "username/flowmerce-dataset"
 HF_DATASET_FILE = os.environ.get("HF_DATASET_FILE", "ecommerce_returns_smart_dataset.csv")
+HF_REPO_ID= os.environ.get("HF_REPO_ID")
 HF_TOKEN        = os.environ.get("HF_TOKEN")         # requis si le dataset est privé
 
 # Models
 MODELS_DIR          = os.path.join(PROJECT_ROOT, "models")
 MODEL_RESOLUTION    = os.path.join(MODELS_DIR, "model_resolution.joblib")
-MODEL_SHIPPING      = os.path.join(MODELS_DIR, "model_shipping.joblib")
 OHE_ENCODER         = os.path.join(MODELS_DIR, "ohe_encoder.joblib")
 SCALER              = os.path.join(MODELS_DIR, "scaler.joblib")
 TRAIN_COLUMNS       = os.path.join(MODELS_DIR, "train_columns.joblib")
@@ -48,7 +48,7 @@ COLONNES_A_SUPPRIMER = [
     "Return_Date",
     "Refund_Amount_DA",
     "Customer_Satisfaction",
-    'Return_Shipping_Paid_By' 
+    'Return_Shipping_Paid_By'
 ]
 
 COLONNES_CATEGORIEL = [
@@ -87,4 +87,4 @@ SEUIL_NA           = 0.30
 TEST_SIZE          = 0.2
 RANDOM_STATE       = 42
 PERCENTILE_RISQUE  = 75
-N_ITER_SEARCH      = 30
+N_ITER_SEARCH      = 5

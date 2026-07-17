@@ -1,0 +1,51 @@
+CONFIGURATION — ENTRAÎNEMENT PERFORMANT (MODÈLE FINAL)
+=======================================================
+
+Objectif
+--------
+Obtenir le meilleur modèle fiable possible avec le pipeline actuel, tout en
+évitant la concurrence CPU inutile entre la recherche CV et LightGBM.
+
+Modifications dans src/training.py
+----------------------------------
+N_JOBS_LGBM   = -1
+N_JOBS_SEARCH = 1
+TUNE_SAMPLE   = 35000
+
+Modifications dans config.py
+----------------------------
+N_ITER_SEARCH = 30
+
+Pourquoi
+-------
+- 30 configurations x 5 folds = 150 entraînements de validation croisée.
+- 35 000 exemples sont utilisés pour choisir les hyperparamètres.
+- Le modèle final est ensuite entraîné sur toutes les données de train.
+- Un seul fold à la fois laisse LightGBM exploiter tous les cœurs CPU de façon
+  efficace ; le GPU T4 n'est pas nécessaire pour cette configuration.
+
+Durée attendue
+--------------
+- MacBook Air M4 branché : environ 40 à 80 minutes.
+- Colab CPU : environ 45 à 90 minutes.
+
+Exécution
+---------
+.venv/bin/python src/pipeline.py
+.venv/bin/python src/training.py
+
+Critère de sélection recommandé
+--------------------------------
+Le pipeline optimise actuellement f1_weighted. Avant de déployer le modèle,
+contrôler aussi le F1 par classe, surtout Reject et Repair. Si elles sont plus
+importantes métier que la performance moyenne, une prochaine expérimentation
+devra optimiser f1_macro et comparer : SMOTE seul, class_weight="balanced"
+seul, et les deux combinés.
+
+Validation finale
+-----------------
+- Conserver le jeu de test intact : ne pas le réutiliser pour choisir des
+  hyperparamètres.
+- Publier uniquement si les seuils configurés sont atteints et si la matrice
+  de confusion est acceptable du point de vue métier.
+

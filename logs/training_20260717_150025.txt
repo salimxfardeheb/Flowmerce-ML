@@ -1,0 +1,107 @@
+============================================================
+  PIPELINE D'ENTRAÎNEMENT — FLOWMERCE (LightGBM)
+============================================================
+
+
+────────────────────────────────────────────────────────────
+  MODÈLE : RESOLUTION (LightGBM)
+────────────────────────────────────────────────────────────
+
+[Phase 1] Grid search sur 12000 lignes...
+
+  [TIMER] Phase 1 — Grid search — 0m 00s[Tuning] Distribution échantillon (12000 lignes) — Resolution : {0: np.int64(7167), 1: np.int64(2643), 2: np.int64(2190)}
+Fitting 5 folds for each of 5 candidates, totalling 25 fits
+  [TIMER] Phase 1 — Grid search — 0m 01s  [TIMER] Phase 1 — Grid search — 0m 02s  [TIMER] Phase 1 — Grid search — 0m 03s  [TIMER] Phase 1 — Grid search — 0m 04s  [TIMER] Phase 1 — Grid search — 0m 05s  [TIMER] Phase 1 — Grid search — 0m 06s  [TIMER] Phase 1 — Grid search — 0m 07s  [TIMER] Phase 1 — Grid search — 0m 08s  [TIMER] Phase 1 — Grid search — 0m 09s  [TIMER] Phase 1 — Grid search — 0m 10s  [TIMER] Phase 1 — Grid search — 0m 11s  [TIMER] Phase 1 — Grid search — 0m 12s  [TIMER] Phase 1 — Grid search — 0m 13s  [TIMER] Phase 1 — Grid search — 0m 14s  [TIMER] Phase 1 — Grid search — 0m 15s  [TIMER] Phase 1 — Grid search — 0m 16s  [TIMER] Phase 1 — Grid search — 0m 17s  [TIMER] Phase 1 — Grid search — 0m 18s  [TIMER] Phase 1 — Grid search — 0m 19s  [TIMER] Phase 1 — Grid search — 0m 20s  [TIMER] Phase 1 — Grid search — 0m 21s  [TIMER] Phase 1 — Grid search — 0m 22s  [TIMER] Phase 1 — Grid search — 0m 23s  [TIMER] Phase 1 — Grid search — 0m 24s  [TIMER] Phase 1 — Grid search — 0m 25s  [TIMER] Phase 1 — Grid search — 0m 26s  [TIMER] Phase 1 — Grid search — 0m 27s  [TIMER] Phase 1 — Grid search — 0m 28s  [TIMER] Phase 1 — Grid search — 0m 29s  [TIMER] Phase 1 — Grid search — 0m 30s  [TIMER] Phase 1 — Grid search — 0m 31s  [TIMER] Phase 1 — Grid search — 0m 32s  [TIMER] Phase 1 — Grid search — 0m 33s  [TIMER] Phase 1 — Grid search — 0m 34s  [TIMER] Phase 1 — Grid search — 0m 35s  [TIMER] Phase 1 — Grid search — 0m 36s  [TIMER] Phase 1 — Grid search — 0m 37s  [TIMER] Phase 1 — Grid search — 0m 38s  [TIMER] Phase 1 — Grid search — 0m 39s  [TIMER] Phase 1 — Grid search — 0m 40s  [TIMER] Phase 1 — Grid search — 0m 41s  [TIMER] Phase 1 — Grid search — 0m 42s  [TIMER] Phase 1 — Grid search — 0m 43s  [TIMER] Phase 1 — Grid search — 0m 44s  [TIMER] Phase 1 — Grid search — 0m 45s  [TIMER] Phase 1 — Grid search — 0m 46s  [TIMER] Phase 1 — Grid search — 0m 47s  [TIMER] Phase 1 — Grid search — 0m 48s  [TIMER] Phase 1 — Grid search — 0m 49s  [TIMER] Phase 1 — Grid search — 0m 50s  [TIMER] Phase 1 — Grid search — 0m 51s  [TIMER] Phase 1 — Grid search — 0m 52s  [TIMER] Phase 1 — Grid search — 0m 53s  [TIMER] Phase 1 — Grid search — 0m 54s  [TIMER] Phase 1 — Grid search — 0m 55s  [TIMER] Phase 1 — Grid search — 0m 56s  [TIMER] Phase 1 — Grid search — 0m 57s  [TIMER] Phase 1 — Grid search — 0m 58s  [TIMER] Phase 1 — Grid search — 0m 59s  [TIMER] Phase 1 — Grid search — 1m 00s  [TIMER] Phase 1 — Grid search — 1m 01s  [TIMER] Phase 1 — Grid search — 1m 02s  [TIMER] Phase 1 — Grid search — 1m 03s  [TIMER] Phase 1 — Grid search — 1m 04s  [TIMER] Phase 1 — Grid search — 1m 05s  [TIMER] Phase 1 — Grid search — 1m 06s  [TIMER] Phase 1 — Grid search — 1m 07s  [TIMER] Phase 1 — Grid search — 1m 08s  [TIMER] Phase 1 — Grid search — 1m 09s  [TIMER] Phase 1 — Grid search — 1m 10s  [TIMER] Phase 1 — Grid search — 1m 11s  [TIMER] Phase 1 — Grid search — 1m 12s  [TIMER] Phase 1 — Grid search — 1m 13s  [TIMER] Phase 1 — Grid search — 1m 14s  [TIMER] Phase 1 — Grid search — 1m 15s  [TIMER] Phase 1 — Grid search — 1m 16s  [TIMER] Phase 1 — Grid search — 1m 17s  [TIMER] Phase 1 — Grid search — 1m 18s  [TIMER] Phase 1 — Grid search — 1m 19s  [TIMER] Phase 1 — Grid search — 1m 20s  [TIMER] Phase 1 — Grid search — 1m 21s  [TIMER] Phase 1 — Grid search — 1m 22s  [TIMER] Phase 1 — Grid search — 1m 23s  [TIMER] Phase 1 — Grid search — 1m 24s  [TIMER] Phase 1 — Grid search — 1m 25s  [TIMER] Phase 1 — Grid search — 1m 26s  [TIMER] Phase 1 — Grid search — 1m 27s  [TIMER] Phase 1 — Grid search — 1m 28s  [TIMER] Phase 1 — Grid search — 1m 29s  [TIMER] Phase 1 — Grid search — 1m 30s  [TIMER] Phase 1 — Grid search — 1m 31s  [TIMER] Phase 1 — Grid search — 1m 32s  [TIMER] Phase 1 — Grid search — 1m 33s  [TIMER] Phase 1 — Grid search — 1m 34s  [TIMER] Phase 1 — Grid search — 1m 35s  [TIMER] Phase 1 — Grid search — 1m 36s  [TIMER] Phase 1 — Grid search — 1m 37s  [TIMER] Phase 1 — Grid search — 1m 38s  [TIMER] Phase 1 — Grid search — 1m 39s  [TIMER] Phase 1 — Grid search — 1m 40s  [TIMER] Phase 1 — Grid search — 1m 41s  [TIMER] Phase 1 — Grid search — 1m 42s  [TIMER] Phase 1 — Grid search — 1m 43s  [TIMER] Phase 1 — Grid search — 1m 44s  [TIMER] Phase 1 — Grid search — 1m 45s  [TIMER] Phase 1 — Grid search — 1m 46s  [TIMER] Phase 1 — Grid search — 1m 47s  [TIMER] Phase 1 — Grid search — 1m 48s  [TIMER] Phase 1 — Grid search — 1m 49s  [TIMER] Phase 1 — Grid search — 1m 50s  [TIMER] Phase 1 — Grid search — 1m 51s  [TIMER] Phase 1 — Grid search — 1m 52s  [TIMER] Phase 1 — Grid search — 1m 53s  [TIMER] Phase 1 — Grid search — 1m 54s  [TIMER] Phase 1 — Grid search — 1m 55s  [TIMER] Phase 1 — Grid search — 1m 56s  [TIMER] Phase 1 — Grid search — 1m 57s  [TIMER] Phase 1 — Grid search — 1m 58s  [TIMER] Phase 1 — Grid search — 1m 59s  [TIMER] Phase 1 — Grid search — 2m 00s  [TIMER] Phase 1 — Grid search — 2m 01s  [TIMER] Phase 1 — Grid search — 2m 02s  [TIMER] Phase 1 — Grid search — 2m 03s  [TIMER] Phase 1 — Grid search — 2m 04s  [TIMER] Phase 1 — Grid search — 2m 05s  [TIMER] Phase 1 — Grid search — 2m 06s  [TIMER] Phase 1 — Grid search — 2m 07s  [TIMER] Phase 1 — Grid search — 2m 08s  [TIMER] Phase 1 — Grid search — 2m 09s  [TIMER] Phase 1 — Grid search — 2m 10s  [TIMER] Phase 1 — Grid search — 2m 11s  [TIMER] Phase 1 — Grid search — 2m 12s  [TIMER] Phase 1 — Grid search — 2m 13s  [TIMER] Phase 1 — Grid search — 2m 14s  [TIMER] Phase 1 — Grid search — 2m 15s  [TIMER] Phase 1 — Grid search — 2m 16s  [TIMER] Phase 1 — Grid search — 2m 17s  [TIMER] Phase 1 — Grid search — 2m 18s  [TIMER] Phase 1 — Grid search — 2m 19s  [TIMER] Phase 1 — Grid search — 2m 20s  [TIMER] Phase 1 — Grid search — 2m 21s  [TIMER] Phase 1 — Grid search — 2m 22s  [TIMER] Phase 1 — Grid search — 2m 23s  [TIMER] Phase 1 — Grid search — 2m 24s  [TIMER] Phase 1 — Grid search — 2m 25s  [TIMER] Phase 1 — Grid search — 2m 26s  [TIMER] Phase 1 — Grid search — 2m 27s  [TIMER] Phase 1 — Grid search — 2m 28s  [TIMER] Phase 1 — Grid search — 2m 29s  [TIMER] Phase 1 — Grid search — 2m 30s  [TIMER] Phase 1 — Grid search — 2m 31s  [TIMER] Phase 1 — Grid search — 2m 32s  [TIMER] Phase 1 — Grid search — 2m 33s  [TIMER] Phase 1 — Grid search — 2m 34s  [TIMER] Phase 1 — Grid search — 2m 35s  [TIMER] Phase 1 — Grid search — 2m 36s  [TIMER] Phase 1 — Grid search — 2m 37s  [TIMER] Phase 1 — Grid search — 2m 38s  [TIMER] Phase 1 — Grid search — 2m 39s  [TIMER] Phase 1 — Grid search — 2m 40s  [TIMER] Phase 1 — Grid search — 2m 41s  [TIMER] Phase 1 — Grid search — 2m 42s  [TIMER] Phase 1 — Grid search — 2m 43s  [TIMER] Phase 1 — Grid search — 2m 44s  [TIMER] Phase 1 — Grid search — 2m 45s  [TIMER] Phase 1 — Grid search — 2m 46s  [TIMER] Phase 1 — Grid search — 2m 47s  [TIMER] Phase 1 — Grid search — 2m 48s  [TIMER] Phase 1 — Grid search — 2m 49s  [TIMER] Phase 1 — Grid search — 2m 50s  [TIMER] Phase 1 — Grid search — 2m 51s  [TIMER] Phase 1 — Grid search — 2m 52s  [TIMER] Phase 1 — Grid search — 2m 53s  [TIMER] Phase 1 — Grid search — 2m 54s  [TIMER] Phase 1 — Grid search — 2m 55s  [TIMER] Phase 1 — Grid search — 2m 56s  [TIMER] Phase 1 — Grid search — 2m 57s  [TIMER] Phase 1 — Grid search — 2m 58s  [TIMER] Phase 1 — Grid search — 2m 59s  [TIMER] Phase 1 — Grid search — 3m 00s  [TIMER] Phase 1 — Grid search — 3m 01s  [TIMER] Phase 1 — Grid search — 3m 02s  [TIMER] Phase 1 — Grid search — 3m 03s  [TIMER] Phase 1 — Grid search — 3m 04s  [TIMER] Phase 1 — Grid search — 3m 05s  [TIMER] Phase 1 — Grid search — 3m 06s  [TIMER] Phase 1 — Grid search — 3m 07s  [TIMER] Phase 1 — Grid search — 3m 08s  [TIMER] Phase 1 — Grid search — 3m 09s  [TIMER] Phase 1 — Grid search — 3m 10s  [TIMER] Phase 1 — Grid search — 3m 11s  [TIMER] Phase 1 — Grid search — 3m 12s  [TIMER] Phase 1 — Grid search — 3m 13s  [TIMER] Phase 1 — Grid search — 3m 14s  [TIMER] Phase 1 — Grid search — 3m 15s  [TIMER] Phase 1 — Grid search — 3m 16s  [TIMER] Phase 1 — Grid search — 3m 17s  [TIMER] Phase 1 — Grid search — 3m 18s  [TIMER] Phase 1 — Grid search — 3m 19s  [TIMER] Phase 1 — Grid search — 3m 20s  [TIMER] Phase 1 — Grid search — 3m 21s  [TIMER] Phase 1 — Grid search — 3m 22s  [TIMER] Phase 1 — Grid search — 3m 23s  [TIMER] Phase 1 — Grid search — 3m 24s  [TIMER] Phase 1 — Grid search — 3m 25s  [TIMER] Phase 1 — Grid search — 3m 26s  [TIMER] Phase 1 — Grid search — 3m 27s  [TIMER] Phase 1 — Grid search — 3m 28s  [TIMER] Phase 1 — Grid search — 3m 29s  [TIMER] Phase 1 — Grid search — 3m 30s  [TIMER] Phase 1 — Grid search — 3m 31s  [TIMER] Phase 1 — Grid search — 3m 32s  [TIMER] Phase 1 — Grid search — 3m 33s  [TIMER] Phase 1 — Grid search — 3m 34s  [TIMER] Phase 1 — Grid search — 3m 35s  [TIMER] Phase 1 — Grid search — 3m 37s  [TIMER] Phase 1 — Grid search — 3m 38s  [TIMER] Phase 1 — Grid search — 3m 39s  [TIMER] Phase 1 — Grid search — 3m 40s  [TIMER] Phase 1 — Grid search — 3m 41s  [TIMER] Phase 1 — Grid search — 3m 42s  [TIMER] Phase 1 — Grid search — 3m 43s  [TIMER] Phase 1 — Grid search — 3m 44s  [TIMER] Phase 1 — Grid search — 3m 45s  [TIMER] Phase 1 — Grid search — 3m 46s  [TIMER] Phase 1 — Grid search — 3m 47s  [TIMER] Phase 1 — Grid search — 3m 48s  [TIMER] Phase 1 — Grid search — 3m 49s  [TIMER] Phase 1 — Grid search — 3m 50s  [TIMER] Phase 1 — Grid search — 3m 51s  [TIMER] Phase 1 — Grid search — 3m 52s  [TIMER] Phase 1 — Grid search — 3m 53s  [TIMER] Phase 1 — Grid search — 3m 54s  [TIMER] Phase 1 — Grid search — 3m 55s  [TIMER] Phase 1 — Grid search — 3m 56s  [TIMER] Phase 1 — Grid search — 3m 57s  [TIMER] Phase 1 — Grid search — 3m 58s  [TIMER] Phase 1 — Grid search — 3m 59s  [TIMER] Phase 1 — Grid search — 4m 00s  [TIMER] Phase 1 — Grid search — 4m 01s  [TIMER] Phase 1 — Grid search — 4m 02s  [TIMER] Phase 1 — Grid search — 4m 03s  [TIMER] Phase 1 — Grid search — 4m 04s  [TIMER] Phase 1 — Grid search — 4m 05s  [TIMER] Phase 1 — Grid search — 4m 06s  [TIMER] Phase 1 — Grid search — 4m 07s  [TIMER] Phase 1 — Grid search — 4m 08s  [TIMER] Phase 1 — Grid search — 4m 09s  [TIMER] Phase 1 — Grid search — 4m 10s  [TIMER] Phase 1 — Grid search — 4m 11s  [TIMER] Phase 1 — Grid search — 4m 12s  [TIMER] Phase 1 — Grid search — 4m 13s  [TIMER] Phase 1 — Grid search — 4m 14s  [TIMER] Phase 1 — Grid search — 4m 15s  [TIMER] Phase 1 — Grid search — 4m 16s  [TIMER] Phase 1 — Grid search — 4m 17s  [TIMER] Phase 1 — Grid search — 4m 18s  [TIMER] Phase 1 — Grid search — 4m 19s  [TIMER] Phase 1 — Grid search — 4m 20s  [TIMER] Phase 1 — Grid search — 4m 21s  [TIMER] Phase 1 — Grid search — 4m 22s  [TIMER] Phase 1 — Grid search — 4m 23s  [TIMER] Phase 1 — Grid search — 4m 24s  [TIMER] Phase 1 — Grid search — 4m 25s  [TIMER] Phase 1 — Grid search — 4m 26s  [TIMER] Phase 1 — Grid search — 4m 27s  [TIMER] Phase 1 — Grid search — 4m 28s  [TIMER] Phase 1 — Grid search — 4m 29s  [TIMER] Phase 1 — Grid search — 4m 30s[Tuning] Meilleurs params (Resolution) :
+         lgbm__subsample: 0.8
+         lgbm__num_leaves: 31
+         lgbm__n_estimators: 200
+         lgbm__min_child_samples: 10
+         lgbm__max_depth: 20
+         lgbm__learning_rate: 0.05
+         lgbm__colsample_bytree: 0.8
+[Tuning] F1 CV (weighted) : 0.7448
+
+  [OK]    Phase 1 — Grid search — 4m 31s
+[Phase 2] Refit final sur 38204 lignes...
+
+  [TIMER] Phase 2 — Refit final — 0m 00s[Training] Distribution complète — Resolution : {0: np.int64(22540), 1: np.int64(8622), 2: np.int64(7042)}
+  [TIMER] Phase 2 — Refit final — 0m 01s  [TIMER] Phase 2 — Refit final — 0m 02s  [TIMER] Phase 2 — Refit final — 0m 03s  [TIMER] Phase 2 — Refit final — 0m 04s[Training] Refit final terminé sur 38204 lignes.
+
+  [OK]    Phase 2 — Refit final — 0m 05s
+
+==================================================
+  ÉVALUATION — Resolution
+==================================================
+  Accuracy  : 0.7430
+  Precision : 0.7470
+  Recall    : 0.7430
+  F1-score  : 0.7447
+==================================================
+
+[Classification Report]
+
+              precision    recall  f1-score   support
+
+    Exchange       0.83      0.80      0.81      5635
+      Reject       0.60      0.63      0.62      2156
+      Repair       0.66      0.69      0.68      1760
+
+    accuracy                           0.74      9551
+   macro avg       0.70      0.71      0.70      9551
+weighted avg       0.75      0.74      0.74      9551
+
+[Matrice de Confusion]
+          Exchange  Reject  Repair
+Exchange      4508     662     465
+Reject         626    1368     162
+Repair         307     233    1220
+
+
+──────────────────────────────────────────────────
+  TOP 20 FEATURE IMPORTANCES
+──────────────────────────────────────────────────
+   1. Days_to_Return                      0.0584  ███████████
+   2. ratio_delai_retour                  0.0441  ████████
+   3. Product_Price_DA                    0.0428  ████████
+   4. Fraud_Score                         0.0405  ████████
+   5. Total_Amount_DA                     0.0382  ███████
+   6. ratio_prix_livraison                0.0371  ███████
+   7. Shipping_Cost_DA                    0.0332  ██████
+   8. Customer_Age                        0.0306  ██████
+   9. Customer_Past_Returns               0.0288  █████
+  10. Product_Category_Vêtements          0.0194  ███
+  11. Product_Category_Chaussures         0.0180  ███
+  12. Product_Category_Sports & Loisirs   0.0173  ███
+  13. Product_Category_Électronique       0.0169  ███
+  14. Product_Category_Électroménager     0.0163  ███
+  15. Product_Category_Maison & Jardin    0.0162  ███
+  16. Return_Reason_Produit contrefait    0.0138  ██
+  17. Order_Quantity                      0.0127  ██
+  18. Shop_Return_Window_Days             0.0124  ██
+  19. Shipping_Method_Yalidine            0.0114  ██
+  20. Customer_Wilaya_Oran                0.0105  ██
+──────────────────────────────────────────────────
+
+
+──────────────────────────────────────────────────
+  DÉCISION — Resolution
+──────────────────────────────────────────────────
+  F1-score  : 0.7447  (seuil >= 0.68)  PASS
+  Accuracy  : 0.7430  (seuil >= 0.7)  PASS
+
+  >>> RÉSULTAT : Performance ACCEPTABLE — prêt pour la sauvegarde
+──────────────────────────────────────────────────
+
+  Temps modèle Resolution : 276.4s
+[Rapport] Sauvegarde -> /Users/salim/github/flowmerce/Flowmerce-ML/src/../logs/training_20260717_150025.txt
+
+============================================================
+  BILAN FINAL
+============================================================
+[Sauvegarde] /Users/salim/github/flowmerce/Flowmerce-ML/models/model_resolution.joblib
+[Sauvegarde] /Users/salim/github/flowmerce/Flowmerce-ML/models/train_columns.joblib
+
+  Modèle prêt pour le déploiement API !
+
+  Temps total : 4m 36s
+============================================================
