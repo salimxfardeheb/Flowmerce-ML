@@ -11,6 +11,7 @@ from datetime import date
 from fastapi import FastAPI, HTTPException, Security, status
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel, ConfigDict, Field
+from huggingface_hub import hf_hub_download
 import joblib
 import pandas as pd
 
@@ -24,19 +25,42 @@ from config import (
     INTERNAL_KEY,
     RAW_DATASET_REAL,
     CSV_COLUMNS,
+    USE_HF_MODELS,
+    HF_REPO_ID,
+    HF_TOKEN,
 )
-from config import PAYMENT_METHODS_ELECTRONIQUES
+
 from src.preprocessing import preprocess
 
 
 # ═══════════════════════════════════════════════════════════════
-#  CHARGEMENT DES ARTEFACTS
+#  CHARGEMENT DES ARTEFACTS — Hugging Face (statique) ou local
 # ═══════════════════════════════════════════════════════════════
-model_resolution = joblib.load(MODEL_RESOLUTION)
-ohe              = joblib.load(OHE_ENCODER)
-scaler           = joblib.load(SCALER)
-train_columns    = joblib.load(TRAIN_COLUMNS)
-training_params  = joblib.load(TRAINING_PARAMS)
+def charger_artefact(nom_fichier_hf, chemin_local):
+    """
+    Si USE_HF_MODELS est True : télécharge (ou lit le cache) depuis le repo HF.
+    Sinon : lit le fichier local défini dans config.py.
+    """
+    if USE_HF_MODELS:
+        chemin = hf_hub_download(
+            repo_id=HF_REPO_ID,
+            filename=nom_fichier_hf,
+            repo_type="model",
+            token=HF_TOKEN,
+        )
+        print(f"[Artefact] {nom_fichier_hf} chargé depuis Hugging Face ({HF_REPO_ID})")
+    else:
+        chemin = chemin_local
+        print(f"[Artefact] {chemin_local} chargé en local")
+
+    return joblib.load(chemin)
+
+
+model_resolution = charger_artefact("model_resolution.joblib", MODEL_RESOLUTION)
+ohe              = charger_artefact("ohe_encoder.joblib",      OHE_ENCODER)
+scaler           = charger_artefact("scaler.joblib",           SCALER)
+train_columns    = charger_artefact("train_columns.joblib",    TRAIN_COLUMNS)
+training_params  = charger_artefact("training_params.joblib",  TRAINING_PARAMS)
 
 seuil_risque = training_params["seuil_risque"]
 
@@ -101,9 +125,8 @@ class ReturnRequest(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════
-#  SCHÉMA — /reclamations
+#  SCHÉMA — /save_claim
 # ═══════════════════════════════════════════════════════════════
-
 class ResolutionEnum(str, Enum):
     Exchange = "Exchange"
     Reject   = "Reject"
@@ -168,6 +191,7 @@ def root():
 def health_check():
     return {
         "status": "ok",
+        "source_artefacts": "huggingface" if USE_HF_MODELS else "local",
         "models_loaded": {
             "resolution": model_resolution is not None,
         },
