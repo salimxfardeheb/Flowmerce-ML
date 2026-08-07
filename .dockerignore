@@ -1,37 +1,52 @@
-# Données et modèles — montés via volumes
-data/
-models/
-
-# Secrets — JAMAIS dans l'image
+# ─── Secrets — JAMAIS dans l'image ────────────────────────────────
 .env
+.env.*
+!.env.example
 *.env
 api/.env
 
-# Python
+# ─── Données volumineuses ─────────────────────────────────────────
+# data/processed/splits_encoded.pkl (~68 Mo) ne sert qu'à l'entraînement.
+# data/raw est conservé : /save_claim y écrit les réclamations réelles.
+data/processed/
+
+# NB : models/ est volontairement INCLUS dans l'image (~3 Mo) pour servir
+# de repli local aux artefacts chargés depuis Hugging Face.
+
+# ─── Python ───────────────────────────────────────────────────────
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .venv/
 venv/
 env/
+.pytest_cache/
+.mypy_cache/
 
-# Git
+# ─── Git / CI ─────────────────────────────────────────────────────
 .git/
 .gitignore
+.github/
 
-# Docker
+# ─── Docker ───────────────────────────────────────────────────────
 Dockerfile
+Dockerfile.prod
+Dockerfile.prod.dockerignore
 docker-compose.yml
 docker-compose.prod.yml
 .dockerignore
 
-# IDE / OS
+# ─── Logs & artefacts d'exécution ─────────────────────────────────
+logs/
+*.log
+
+# ─── Documentation & IDE / OS ─────────────────────────────────────
+*.md
+config_entrainement_*.txt
+.claude/
 .vscode/
 .idea/
 *.swp
-Thumbs.db
-.DS_Store
-
-# Divers
-README.md
-*.log
+**/Thumbs.db
+**/.DS_Store
