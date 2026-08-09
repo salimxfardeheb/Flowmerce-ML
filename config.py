@@ -42,6 +42,12 @@ TRAINING_PARAMS     = os.path.join(MODELS_DIR, "training_params.joblib")
 # ═══════════════════════════════════════════════════════════════
 #  COLONNES
 # ═══════════════════════════════════════════════════════════════
+# Colonnes retirées avant l'entraînement.
+# `Refund_Amount_DA` et `Return_Shipping_Paid_By` ne sont plus collectés ni
+# écrits par /save_claim (absents de CSV_COLUMNS), mais restent listés ici :
+# les datasets historiques (dont le dataset synthétique sur HF) les contiennent
+# encore, et le drop est conditionnel — il garantit qu'ils ne repassent jamais
+# en feature. Ne pas retirer de cette liste tant qu'un dataset les porte.
 COLONNES_A_SUPPRIMER = [
     "Order_ID",
     "Customer_ID",
@@ -64,6 +70,8 @@ COLONNES_CATEGORIEL = [
     "reason_x_policy",
 ]
 
+# Schéma du CSV alimenté par /save_claim. Doit rester aligné sur les champs
+# de ReclamationInput (api/server.py).
 CSV_COLUMNS = [
     "Order_ID", "Customer_ID", "Customer_Age", "Customer_Gender",
     "Customer_Wilaya", "Customer_Past_Returns", "Shop_Name",
@@ -71,8 +79,7 @@ CSV_COLUMNS = [
     "Order_Quantity", "Total_Amount_DA", "Payment_Method",
     "Shipping_Method", "Shipping_Cost_DA", "Order_Date", "Return_Date",
     "Days_to_Return", "Shop_Return_Window_Days", "Within_Return_Policy",
-    "Return_Reason", "Resolution", "Return_Shipping_Paid_By",
-    "Refund_Amount_DA", "Fraud_Score", "Is_Suspicious",
+    "Return_Reason", "Resolution", "Fraud_Score", "Is_Suspicious",
     "Customer_Satisfaction",
 ]
 

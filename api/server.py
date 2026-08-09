@@ -65,6 +65,20 @@ training_params  = charger_artefact("training_params.joblib",  TRAINING_PARAMS)
 seuil_risque = training_params["seuil_risque"]
 
 
+def lire_entete_csv(chemin):
+    """
+    Retourne la liste des colonnes de l'en-tête d'un CSV existant,
+    ou None si le fichier n'existe pas / est vide.
+    """
+    if not os.path.isfile(chemin) or os.path.getsize(chemin) == 0:
+        return None
+
+    with open(chemin, mode="r", newline="", encoding="utf-8") as f:
+        entete = next(csv.reader(f), None)
+
+    return entete or None
+
+
 # ═══════════════════════════════════════════════════════════════
 #  AUTHENTIFICATION — X-Internal-Key
 # ═══════════════════════════════════════════════════════════════
@@ -157,11 +171,44 @@ class ReclamationInput(BaseModel):
     Within_Return_Policy:        int   = Field(ge=0, le=1)
     Return_Reason:               str
     Resolution:                   ResolutionEnum
-    Return_Shipping_Paid_By:      str
-    Refund_Amount_DA:             float = Field(ge=0)
     Fraud_Score:                   float = Field(ge=0, le=100)
     Is_Suspicious:                  int  = Field(ge=0, le=1)
     Customer_Satisfaction:           Optional[int] = Field(default=None, ge=1, le=5)
+
+    # Fenêtre de transition : `Return_Shipping_Paid_By` et `Refund_Amount_DA`
+    # ne sont plus collectés par aucun point d'entrée du produit. Le client web
+    # a cessé de les envoyer ; extra="ignore" garantit qu'un ancien client qui
+    # les enverrait encore reçoive un 201 plutôt qu'un 422.
+    # À repasser en "forbid" une fois tous les clients migrés.
+    model_config = ConfigDict(extra="ignore", json_schema_extra={
+        "example": {
+            "Order_ID":                "cmrxl0wm9000023zzv2lryhrn",
+            "Customer_ID":             "CUST-501",
+            "Customer_Age":            30,
+            "Customer_Gender":         "Unknown",
+            "Customer_Wilaya":         "Alger",
+            "Customer_Past_Returns":   0,
+            "Shop_Name":               "ia-store",
+            "Product_Category":        "Vetements",
+            "Product_Name":            "OVERSIZE VINTAGE SHIRT",
+            "Product_Price_DA":        5500.0,
+            "Order_Quantity":          1,
+            "Total_Amount_DA":         5500.0,
+            "Payment_Method":          "Especes livraison",
+            "Shipping_Method":         "Yalidine",
+            "Shipping_Cost_DA":        400.0,
+            "Order_Date":              "2026-07-23",
+            "Return_Date":             "2026-07-31",
+            "Days_to_Return":          8,
+            "Shop_Return_Window_Days": 14,
+            "Within_Return_Policy":    1,
+            "Return_Reason":           "Mauvaise taille",
+            "Resolution":              "Exchange",
+            "Fraud_Score":             5.0,
+            "Is_Suspicious":           0,
+            "Customer_Satisfaction":   3,
+        }
+    })
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -256,12 +303,22 @@ def ajouter_reclamation(
     row_dict["Resolution"] = row_dict["Resolution"].value  # Enum -> str
 
     try:
-        fichier_existe = os.path.isfile(RAW_DATASET_REAL)
+        # Un CSV déjà présent peut porter un en-tête hérité (colonnes retirées
+        # depuis, ex. Return_Shipping_Paid_By / Refund_Amount_DA). On écrit
+        # alors selon SON en-tête — sinon les valeurs seraient décalées d'une
+        # colonne à l'insertion. Les colonnes héritées sont laissées vides :
+        # le fichier reste lisible, mais n'est plus alimenté.
+        entete_existante = lire_entete_csv(RAW_DATASET_REAL)
 
         with open(RAW_DATASET_REAL, mode="a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+            writer = csv.DictWriter(
+                f,
+                fieldnames=entete_existante or CSV_COLUMNS,
+                restval="",           # colonnes héritées → vides
+                extrasaction="ignore",
+            )
 
-            if not fichier_existe:
+            if entete_existante is None:
                 writer.writeheader()
 
             writer.writerow(row_dict)

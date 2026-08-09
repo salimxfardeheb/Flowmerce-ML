@@ -41,6 +41,10 @@ docker-compose.prod.yml
 logs/
 *.log
 
+# ─── Tests — inutiles au runtime ──────────────────────────────────
+tests/
+requirements-dev.txt
+
 # ─── Documentation & IDE / OS ─────────────────────────────────────
 *.md
 config_entrainement_*.txt

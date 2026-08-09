@@ -29,8 +29,12 @@ Flowmerce/
 │   └── training.py                               # Entraînement, évaluation, sauvegarde
 │
 ├── api/
-│   ├── server.py                                 # API FastAPI v4.0.0 — endpoint /predict
+│   ├── server.py                                 # API FastAPI v4.0.0 — /predict, /save_claim
 │   └── .env                                       # Clé interne (INTERNAL_API_KEY)
+│
+├── tests/
+│   ├── conftest.py                                # Fixtures (artefacts neutralisés, CSV temporaire)
+│   └── test_save_claim.py                         # Contrat de /save_claim
 │
 ├── logs/                                          # Rapports d'entraînement horodatés
 │
@@ -79,9 +83,16 @@ Colonnes supprimées car non prédictives, identifiants, ou sources de data leak
 | `Order_ID`, `Customer_ID` | Identifiants, aucun signal |
 | `Product_Name` | Trop granulaire |
 | `Order_Date`, `Return_Date` | Remplacées par `Days_to_Return` |
-| `Refund_Amount_DA` | Conséquence de la décision, pas une cause |
+| `Refund_Amount_DA` | Conséquence de la décision, pas une cause — **plus collectée** |
 | `Customer_Satisfaction` | Data leakage (renseignée après résolution) |
-| `Return_Shipping_Paid_By` | Ancienne cible, retirée du périmètre |
+| `Return_Shipping_Paid_By` | Ancienne cible, retirée du périmètre — **plus collectée** |
+
+> `Refund_Amount_DA` et `Return_Shipping_Paid_By` ne sont plus ni acceptés par
+> `/save_claim`, ni écrits dans le dataset. Ils restent listés dans
+> `COLONNES_A_SUPPRIMER` uniquement parce que les datasets historiques les
+> contiennent encore : le drop est conditionnel et garantit qu'ils ne
+> repassent jamais en feature. Ne pas les retirer de cette liste tant qu'un
+> dataset les porte.
 
 Le nettoyage inclut également :
 
@@ -336,9 +347,87 @@ Vérifie que le modèle et les artefacts sont bien chargés.
 }
 ```
 
+### `POST /save_claim`
+
+> En-tête requis : `X-Internal-Key: <votre_clé>`
+
+Insère une réclamation **réelle**, résolution finale comprise, dans le dataset
+d'entraînement (`data/raw/ecommerce_returns_real_dataset.csv`). Réponse `201`.
+
+**Corps de la requête :**
+
+```json
+{
+  "Order_ID": "cmrxl0wm9000023zzv2lryhrn",
+  "Customer_ID": "CUST-501",
+  "Customer_Age": 30,
+  "Customer_Gender": "Unknown",
+  "Customer_Wilaya": "Alger",
+  "Customer_Past_Returns": 0,
+  "Shop_Name": "ia-store",
+  "Product_Category": "Vetements",
+  "Product_Name": "OVERSIZE VINTAGE SHIRT",
+  "Product_Price_DA": 5500.0,
+  "Order_Quantity": 1,
+  "Total_Amount_DA": 5500.0,
+  "Payment_Method": "Especes livraison",
+  "Shipping_Method": "Yalidine",
+  "Shipping_Cost_DA": 400.0,
+  "Order_Date": "2026-07-23",
+  "Return_Date": "2026-07-31",
+  "Days_to_Return": 8,
+  "Shop_Return_Window_Days": 14,
+  "Within_Return_Policy": 1,
+  "Return_Reason": "Mauvaise taille",
+  "Resolution": "Exchange",
+  "Fraud_Score": 5.0,
+  "Is_Suspicious": 0,
+  "Customer_Satisfaction": 3
+}
+```
+
+> `Resolution` accepte `Exchange`, `Reject`, `Repair` ou `Refund`.
+> `Customer_Satisfaction` est optionnel (`1`–`5`).
+
+**Champs retirés du contrat :**
+
+`Return_Shipping_Paid_By` et `Refund_Amount_DA` **ne sont plus acceptés** : aucun
+point d'entrée du produit ne les collectait, la valeur envoyée était constante
+(`""` et `0`) et n'apportait aucun signal. Ils ne sont plus écrits dans le
+dataset.
+
+Pendant la fenêtre de transition, `ReclamationInput` est configuré en
+`extra="ignore"` : un ancien client qui envoie encore ces clés reçoit un `201`
+et les valeurs sont simplement ignorées, plutôt qu'un `422`. **À repasser en
+`extra="forbid"` une fois tous les clients migrés.**
+
+**Réponse :**
+
+```json
+{
+  "status": "ok",
+  "message": "Réclamation insérée avec succès.",
+  "order_id": "cmrxl0wm9000023zzv2lryhrn"
+}
+```
+
+---
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+pytest tests/ -q
+```
+
+Les tests neutralisent le chargement des artefacts Hugging Face à l'import :
+aucun réseau ni token n'est nécessaire.
+
 ---
 
 ## Champs de la requête
+
+Endpoint `/predict` :
 
 | Champ | Type | Contrainte | Description |
 |---|---|---|---|
