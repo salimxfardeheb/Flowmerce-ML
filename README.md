@@ -132,8 +132,10 @@ Algorithme : **LightGBM** (`LGBMClassifier`, objectif `multiclass`, `class_weigh
 
 L'entraînement se fait en **deux phases** pour rester rapide :
 
-- **Phase 1 — Grid search** : `RandomizedSearchCV` (`n_iter=30`, `cv=5`, scoring `f1_weighted`) sur un sous-échantillon de **30 000 lignes** (sans refit).
+- **Phase 1 — Grid search** : `RandomizedSearchCV` (`n_iter=5`, `cv=5`, scoring `f1_weighted`) sur un sous-échantillon de **12 000 lignes** (sans refit).
 - **Phase 2 — Refit final** : ré-entraînement du meilleur jeu d'hyperparamètres sur **100 %** des données d'entraînement.
+
+`n_iter` est piloté par `N_ITER_SEARCH` (`config.py`) et la taille du sous-échantillon par `TUNE_SAMPLE` (`src/training.py`) — augmente-les pour une recherche plus large.
 
 Paramètres explorés :
 
@@ -263,7 +265,7 @@ Variables d'environnement utiles :
 
 ## API — Endpoints
 
-L'API est en version **4.0.0**. L'endpoint `/predict` est protégé par une clé interne passée dans l'en-tête HTTP **`X-Internal-Key`**.
+L'API est en version **4.0.0**. Les endpoints `/predict` et `/save_claim` sont protégés par une clé interne passée dans l'en-tête HTTP **`X-Internal-Key`** ; `/` et `/health` sont publics.
 
 ### `GET /`
 
@@ -276,6 +278,7 @@ Vérifie que le modèle et les artefacts sont bien chargés.
 ```json
 {
   "status": "ok",
+  "source_artefacts": "huggingface",
   "models_loaded": {
     "resolution": true
   },
@@ -285,9 +288,11 @@ Vérifie que le modèle et les artefacts sont bien chargés.
     "train_columns": true,
     "training_params": true
   },
-  "seuil_risque": 5.0
+  "seuil_risque": 3.0
 }
 ```
+
+> `source_artefacts` vaut `huggingface` ou `local` selon `USE_HF_MODELS` (`config.py`).
 
 ### `POST /predict`
 
@@ -326,26 +331,29 @@ Vérifie que le modèle et les artefacts sont bien chargés.
 {
   "resolution": {
     "prediction": "Exchange",
-    "confidence": 0.4821,
+    "confidence": 0.9435,
     "probabilities": {
-      "Exchange": 0.4821,
-      "Reject": 0.1872,
-      "Repair": 0.1173
+      "Exchange": 0.9435,
+      "Reject": 0.0491,
+      "Repair": 0.0074
     }
   },
   "risk_flag": {
     "is_suspicious": false,
     "fraud_score": 5.0,
-    "seuil_risque": 5.0,
-    "above_threshold": true
-  },
-  "escalade": {
-    "refund_recommande": false,
-    "raison": null,
-    "decision": null
+    "seuil_risque": 3.0,
+    "client_a_risque": false
   }
 }
 ```
+
+| Champ de la réponse | Signification |
+|---|---|
+| `resolution.prediction` | Résolution prédite : `Exchange`, `Reject` ou `Repair` |
+| `resolution.confidence` | Probabilité de la classe retenue (= max des `probabilities`) |
+| `risk_flag.is_suspicious` | `Fraud_Score >= 60` |
+| `risk_flag.seuil_risque` | Seuil P75 appris à l'entraînement (`training_params.joblib`) |
+| `risk_flag.client_a_risque` | `Customer_Past_Returns >= seuil_risque` |
 
 ### `POST /save_claim`
 
