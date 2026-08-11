@@ -86,9 +86,9 @@ def test_ancien_payload_avec_champs_retires_nechoue_pas(
 
 def test_csv_herite_nest_pas_decale(client, entetes, reclamation, csv_reclamations):
     """
-    Sur un CSV portant l'ancien en-tête (27 colonnes), l'insertion suit cet
-    en-tête : aucune valeur ne glisse d'une colonne, les colonnes retirées
-    restent vides.
+    Sur un CSV portant l'ancien en-tête (28 colonnes, dont les deux retirées),
+    l'insertion suit cet en-tête : aucune valeur ne glisse d'une colonne, les
+    colonnes retirées restent vides.
     """
     entete_heritee = [
         "Order_ID", "Customer_ID", "Customer_Age", "Customer_Gender",
@@ -97,9 +97,9 @@ def test_csv_herite_nest_pas_decale(client, entetes, reclamation, csv_reclamatio
         "Order_Quantity", "Total_Amount_DA", "Payment_Method",
         "Shipping_Method", "Shipping_Cost_DA", "Order_Date", "Return_Date",
         "Days_to_Return", "Shop_Return_Window_Days", "Within_Return_Policy",
-        "Return_Reason", "Resolution", "Return_Shipping_Paid_By",
-        "Refund_Amount_DA", "Fraud_Score", "Is_Suspicious",
-        "Customer_Satisfaction",
+        "Return_Reason", "Resolution", "Label_Source",
+        "Return_Shipping_Paid_By", "Refund_Amount_DA", "Fraud_Score",
+        "Is_Suspicious", "Customer_Satisfaction",
     ]
     with open(csv_reclamations, "w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow(entete_heritee)

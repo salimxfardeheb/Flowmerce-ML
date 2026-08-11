@@ -194,7 +194,8 @@ python-dotenv
 ### 1. Lancer le pipeline de prétraitement
 
 ```bash
-python src/pipeline.py
+python src/pipeline.py                              # dataset portant la colonne Label_Source
+python src/pipeline.py --origine-labels synthetic   # dataset simulé, sans colonne de provenance
 ```
 
 Génère :
@@ -203,6 +204,13 @@ Génère :
 - `models/ohe_encoder.joblib`
 - `models/scaler.joblib`
 - `models/training_params.joblib` (seuil P75 et métadonnées)
+
+**Filtrage de la vérité terrain.** Avant tout nettoyage, le pipeline ne conserve que les lignes dont
+`Label_Source` vaut `human`, `policy_rule` ou `synthetic`. Les lignes `model` — des résolutions
+écrites par le modèle lui-même — sont **exclues** : sans ce filtre, le modèle se réentraîne sur ses
+propres sorties et sédimente ses biais. Un dataset sans colonne de provenance est refusé, sauf
+origine déclarée explicitement via `--origine-labels`. Un dataset ne contenant que des labels `model`
+interrompt l'entraînement avec un message actionnable, plutôt que de produire un modèle sur du vide.
 
 ### 2. Entraîner le modèle
 
@@ -214,6 +222,7 @@ Génère (si les seuils de performance sont atteints) :
 
 - `models/model_resolution.joblib`
 - `models/train_columns.joblib`
+- `contracts/feature_contract.json` (contrat de features — voir ci-dessous)
 - `logs/training_<horodatage>.txt` (rapport d'entraînement)
 
 ### 3. Lancer l'API
@@ -263,9 +272,120 @@ Variables d'environnement utiles :
 
 ---
 
+## Contrat de features (`contracts/feature_contract.json`)
+
+Le vocabulaire catégoriel du modèle est **dérivé des artefacts entraînés**, jamais saisi à la main :
+
+```text
+ohe_encoder.joblib + scaler.joblib + train_columns.joblib
+                    │
+                    ▼   contrat_depuis_artefacts()
+        contracts/feature_contract.json     (version = empreinte du contenu)
+                    │
+          ┌─────────┴─────────┐
+          ▼                   ▼
+      API ML          web app (lib/ml/feature-contract.json, copie identique)
+```
+
+Le fichier est régénéré par `src/training.py` à chaque modèle retenu, ou à la main :
+
+```bash
+python scripts/build_feature_contract.py           # régénère
+python scripts/build_feature_contract.py --check   # sort 1 si le contrat versionné a dérivé
+cp contracts/feature_contract.json ../flowmerce-web-app/lib/ml/feature-contract.json
+```
+
+Quatre garde-fous rendent toute divergence bruyante :
+
+| Garde-fou | Effet |
+|---|---|
+| `tests/test_feature_contract.py` | échoue si le contrat versionné ne correspond plus aux artefacts |
+| `tests/test_train_serve_skew.py` | échoue si la copie web app diverge du contrat ML |
+| Démarrage de l'API | **refuse de servir** si le contrat ne décrit pas les artefacts chargés |
+| En-tête `X-Feature-Contract-Version` | **409** si l'appelant est construit sur un autre vocabulaire |
+
+À l'inférence, une valeur hors vocabulaire n'est plus convertie en vecteur nul silencieux : elle est
+journalisée (`contract.categories_inconnues`) et remontée dans la réponse sous `contract`. La politique
+par feature est portée par le contrat : `expected` pour les features en cours de retrait
+(signalées, jamais alertées), `alert` pour toutes les autres.
+
+`models/` est dans le `.gitignore` de ce dépôt (c'est H-07, le build ML non reproductible), mais
+`contracts/feature_contract.json` **est versionné**. Le vocabulaire servi devient donc lisible
+dans l'historique Git alors que les artefacts binaires ne le sont pas — un changement de
+vocabulaire apparaîtra dans une revue de code.
+
+### Features en cours de retrait
+
+`Shop_Name` et `Shipping_Method` ne seront plus des features au prochain réentraînement
+(`COLONNES_A_SUPPRIMER`). Elles restent **collectées** par `/save_claim` — le dataset doit
+décrire la réalité d'une réclamation — mais leur vocabulaire n'a plus d'enjeu, d'où
+`unknown_policy: "expected"`.
+
+| Feature | Pourquoi elle sort |
+|---|---|
+| `Shop_Name` | Cardinalité non bornée, qui croît avec le nombre de vendeurs. Chaque nouvelle boutique était hors vocabulaire à vie : le one-hot ne peut pas apprendre une liste ouverte. Le signal utile d'une boutique (taux de retour historique, ancienneté, volume) se porte par des features numériques, qui ne périment pas. |
+| `Shipping_Method` | Vocabulaire vivant — les transporteurs algériens apparaissent et disparaissent — pour un apport marginal : le rapport d'entraînement plaçait `Shipping_Method_Yalidine` au 19ᵉ rang des importances. |
+
+Le retrait ne demande **aucun changement de code à l'inférence** :
+`src/preprocessing.encoder_features` lit les colonnes à encoder sur `ohe.feature_names_in_`, donc
+sur le modèle réellement chargé. Le modèle actuel les connaît encore et continue de servir ; le
+prochain ne les connaîtra plus et servira tout autant.
+
+### Vocabulaire nouveau — `/save_claim` collecte, `/predict` interroge
+
+Les deux endpoints traitent une valeur hors vocabulaire de façon **volontairement opposée** :
+
+| | `/predict` | `/save_claim` |
+|---|---|---|
+| Nature | interroge un modèle figé | décrit une réclamation réelle |
+| Valeur inconnue | anomalie → `WARNING`, remontée dans `contract` | **matière première** → `INFO`, conservée telle quelle |
+| Effet | vecteur d'entrée partiel, signalé | aucune perte : la valeur entre au dataset |
+
+C'est ce qui permet au vocabulaire de s'enrichir : une wilaya, une catégorie ou un moyen de
+paiement que le modèle ignore est **collecté sans déformation**, et devient apprenable au
+prochain entraînement. Pour savoir si ce moment est venu :
+
+```bash
+python scripts/vocabulary_report.py                           # dataset collecté vs modèle
+python scripts/vocabulary_report.py --verite-terrain-seulement
+```
+
+Le rapport liste, par feature, les valeurs présentes dans le dataset et absentes du contrat avec
+leur nombre d'occurrences, et rappelle combien de lignes portent un label exploitable. Une valeur
+nouvelle n'a d'intérêt à l'entraînement que si elle est accompagnée de décisions humaines.
+
+### Cycle complet d'enrichissement du vocabulaire
+
+```text
+nouvelles valeurs collectées (/save_claim)
+        ↓  scripts/vocabulary_report.py  →  « 12 wilayas inconnues, 340 labels humains »
+décisions humaines suffisantes ?
+        ↓  python src/pipeline.py        →  encodeur ajusté sur le nouveau vocabulaire
+        ↓  python src/training.py        →  modèle + contrat régénérés (nouvelle version)
+        ↓  cp contracts/feature_contract.json ../flowmerce-web-app/lib/ml/feature-contract.json
+        ↓  déployer les deux ensemble
+```
+
+L'ordre importe : déployer l'API ML sans répercuter la copie web app fait répondre **409** à
+chaque prédiction — un arrêt franc, pas une dérive silencieuse.
+
+---
+
 ## API — Endpoints
 
-L'API est en version **4.0.0**. Les endpoints `/predict` et `/save_claim` sont protégés par une clé interne passée dans l'en-tête HTTP **`X-Internal-Key`** ; `/` et `/health` sont publics.
+L'API est en version **5.0.0**. Les endpoints `/predict`, `/save_claim` et `/feature-contract` sont protégés par une clé interne passée dans l'en-tête HTTP **`X-Internal-Key`** ; `/` et `/health` sont publics.
+
+### Authentification — fail-closed
+
+| Situation | Réponse |
+|---|---|
+| `INTERNAL_API_KEY` non configuré | **503** sur toute requête authentifiée, et le processus **refuse de démarrer** |
+| En-tête absent ou vide | **401** |
+| En-tête erroné | **403** (comparaison à temps constant, `secrets.compare_digest`) |
+| En-tête correct | requête servie |
+
+Une variable d'environnement absente ne peut donc plus ouvrir l'API : `INTERNAL_KEY` valait `None`,
+l'en-tête absent aussi, et la comparaison `None != None` étant fausse, la garde laissait passer.
 
 ### `GET /`
 
@@ -318,11 +438,25 @@ Vérifie que le modèle et les artefacts sont bien chargés.
   "Days_to_Return": 4,
   "Shop_Return_Window_Days": 14,
   "Within_Return_Policy": 1,
-  "Fraud_Score": 5.0
+  "Fraud_Score": 5.0,
+  "Is_Suspicious": 0
 }
 ```
 
-> `Is_Suspicious` n'est **pas** envoyé par le client : il est calculé automatiquement côté serveur (`Fraud_Score >= 60`).
+> **En-tête recommandé :** `X-Feature-Contract-Version: <version>` — l'API répond **409** si l'appelant
+> a été construit sur un autre vocabulaire de features. Mieux vaut un refus explicite qu'une prédiction
+> rendue sur des colonnes mal alignées.
+>
+> `Is_Suspicious` est **fourni par l'appelant** et n'est plus recalculé côté serveur. Il portait
+> auparavant trois définitions incompatibles : `Customer_Past_Returns >= fraudReturnThreshold`
+> côté web app (persistée dans le dataset), `Fraud_Score >= 60` à l'inférence, et rien du tout dans
+> le schéma Pydantic — qui l'écartait en silence. C'est désormais le seuil configuré par le vendeur
+> qui fait foi, de bout en bout.
+>
+> `Customer_ID` est accepté mais n'est pas une feature (il figure dans `COLONNES_A_SUPPRIMER`).
+> Tout autre champ provoque un **422** : `ReturnRequest` est en `extra="forbid"`, une divergence de
+> schéma est bruyante au lieu de faire disparaître une feature sans trace.
+>
 > `Customer_Satisfaction` n'est plus accepté (retiré pour éviter le data leakage).
 
 **Réponse :**
@@ -343,6 +477,14 @@ Vérifie que le modèle et les artefacts sont bien chargés.
     "fraud_score": 5.0,
     "seuil_risque": 3.0,
     "client_a_risque": false
+  },
+  "contract": {
+    "version": "d720ad897bf56f11",
+    "degraded": true,
+    "unknown_categories": { "Shop_Name": "ia-store" },
+    "alert_features": [],
+    "expected_unknown": ["Shop_Name"],
+    "categorical_coverage": 0.8571
   }
 }
 ```
@@ -351,9 +493,13 @@ Vérifie que le modèle et les artefacts sont bien chargés.
 |---|---|
 | `resolution.prediction` | Résolution prédite : `Exchange`, `Reject` ou `Repair` |
 | `resolution.confidence` | Probabilité de la classe retenue (= max des `probabilities`) |
-| `risk_flag.is_suspicious` | `Fraud_Score >= 60` |
+| `risk_flag.is_suspicious` | Valeur d'`Is_Suspicious` transmise par l'appelant (seuil vendeur) |
 | `risk_flag.seuil_risque` | Seuil P75 appris à l'entraînement (`training_params.joblib`) |
 | `risk_flag.client_a_risque` | `Customer_Past_Returns >= seuil_risque` |
+| `contract.degraded` | Au moins une valeur catégorielle était hors vocabulaire : le vecteur d'entrée est partiel |
+| `contract.unknown_categories` | Les valeurs concernées, feature par feature |
+| `contract.alert_features` | Sous-ensemble anormal (hors divergences documentées comme `Shop_Name`) |
+| `contract.categorical_coverage` | Part des groupes catégoriels reconnus, 0..1 |
 
 ### `POST /save_claim`
 
@@ -361,6 +507,15 @@ Vérifie que le modèle et les artefacts sont bien chargés.
 
 Insère une réclamation **réelle**, résolution finale comprise, dans le dataset
 d'entraînement (`data/raw/ecommerce_returns_real_dataset.csv`). Réponse `201`.
+
+**Idempotence.** Un `Order_ID` déjà présent renvoie `200` avec `status: "duplicate"` sans rien
+insérer : un export rejoué ou un retry réseau ne duplique plus la ligne. Les écritures concurrentes
+sont sérialisées par un verrou exclusif sur le fichier.
+
+**`Label_Source` est obligatoire** — `human`, `policy_rule` ou `model`. Une résolution sans
+provenance est indiscernable d'une sortie de modèle ; les lignes `model` sont conservées pour la
+traçabilité mais exclues de l'entraînement. Un dataset existant qui ne porte pas la colonne fait
+répondre `409` : `extrasaction="ignore"` ferait sinon disparaître la provenance en silence.
 
 **Corps de la requête :**
 
@@ -388,6 +543,7 @@ d'entraînement (`data/raw/ecommerce_returns_real_dataset.csv`). Réponse `201`.
   "Within_Return_Policy": 1,
   "Return_Reason": "Mauvaise taille",
   "Resolution": "Exchange",
+  "Label_Source": "human",
   "Fraud_Score": 5.0,
   "Is_Suspicious": 0,
   "Customer_Satisfaction": 3

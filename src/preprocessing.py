@@ -16,8 +16,6 @@ import numpy as np
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from config import COLONNES_CATEGORIEL
-
 
 # ═══════════════════════════════════════════════════════════════
 #  FEATURE ENGINEERING
@@ -72,9 +70,26 @@ def encoder_features(df, ohe, scaler, train_columns):
     """
     Encode un DataFrame avec le OneHotEncoder et le StandardScaler
     sauvegardés à l'entraînement. Aligne les colonnes sur train_columns.
+
+    Les colonnes à encoder sont lues sur l'encodeur lui-même
+    (`ohe.feature_names_in_`), pas sur une liste de configuration. C'est le seul
+    moyen d'être certain de lui présenter exactement les colonnes sur lesquelles
+    il a été ajusté : une liste en dur et un artefact peuvent diverger, un
+    artefact ne peut pas diverger de lui-même.
+
+    Conséquence pratique : retirer une feature catégorielle du modèle ne demande
+    qu'un réentraînement. L'inférence suit toute seule, sans changement de code
+    ni fenêtre où les deux ne seraient pas d'accord.
     """
-    cols_cat = [c for c in COLONNES_CATEGORIEL if c in df.columns]
+    cols_cat = ohe.feature_names_in_.tolist()
     cols_num = scaler.feature_names_in_.tolist()
+
+    manquantes = [c for c in cols_cat if c not in df.columns]
+    if manquantes:
+        raise ValueError(
+            f"Colonnes catégorielles absentes de l'entrée : {manquantes}. "
+            f"L'encodeur chargé attend {cols_cat}."
+        )
 
     # One-Hot Encoding
     ohe_feature_names = ohe.get_feature_names_out(cols_cat).tolist()

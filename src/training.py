@@ -25,12 +25,16 @@ from config import (
     SPLITS_FILE,
     MODEL_RESOLUTION,
     TRAIN_COLUMNS,
+    OHE_ENCODER,
+    SCALER,
+    FEATURE_CONTRACT,
     SEUIL_F1_RESOLUTION,
     SEUIL_ACCURACY,
     N_ITER_SEARCH,
     RANDOM_STATE,
     RESOLUTION_LABELS,
 )
+from src.feature_contract import contrat_depuis_artefacts, ecrire_contrat
 
 # ─────────────────────────────────────────────────────────────
 #  CONFIGURATION MACHINE
@@ -357,6 +361,23 @@ if __name__ == "__main__":
     if res_ok:
         sauvegarder(model_resolution, MODEL_RESOLUTION)
         sauvegarder(list(X_train.columns), TRAIN_COLUMNS)
+
+        # Contrat de features — dérivé du jeu d'artefacts qui vient d'être figé.
+        # C'est ici, et nulle part ailleurs, que le vocabulaire servi est défini :
+        # il ne peut donc pas diverger de l'encodeur réellement déployé (C-02).
+        contrat = contrat_depuis_artefacts(
+            joblib.load(OHE_ENCODER),
+            joblib.load(SCALER),
+            list(X_train.columns),
+            RESOLUTION_LABELS,
+        )
+        ecrire_contrat(contrat)
+        print(f"[Sauvegarde] Contrat de features -> {FEATURE_CONTRACT}")
+        print(f"             version : {contrat['contract_version']}")
+        print("  ⚠ Répercuter la copie côté web app :")
+        print("    cp contracts/feature_contract.json "
+              "../flowmerce-web-app/lib/ml/feature-contract.json")
+
         print(f"\n  Modèle prêt pour le déploiement API !")
     else:
         print("[SKIP] model_resolution NON sauvegardé (performance insuffisante)")

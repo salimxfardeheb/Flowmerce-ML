@@ -20,6 +20,9 @@ from config import (
     SCALER,
     TRAINING_PARAMS,
     COLONNES_A_SUPPRIMER,
+    COLONNE_LABEL_SOURCE,
+    LABEL_SOURCES_VERITE_TERRAIN,
+    LABEL_SOURCE_MODEL,
     RESOLUTION_MAP,
     SEUIL_NA,
     TEST_SIZE,
@@ -55,6 +58,74 @@ def charger_donnees():
 
     df = pd.read_csv(chemin)
     print(f"[Data] Chargé : {df.shape[0]} lignes, {df.shape[1]} colonnes\n")
+    return df
+
+
+# ═══════════════════════════════════════════════════════════════
+#  ÉTAPE 0 bis — FILTRAGE DE LA VÉRITÉ TERRAIN
+#
+#  Une prédiction du modèle n'est pas une vérité terrain. Sans ce filtre, les
+#  résolutions écrites automatiquement par le modèle (auto-approve AI_AUTO,
+#  auto-reject sur Reject) reviennent comme labels supervisés au cycle suivant :
+#  le modèle se réentraîne sur ses propres sorties et sédimente ses biais (C-04).
+# ═══════════════════════════════════════════════════════════════
+class DatasetNonSupervise(RuntimeError):
+    """Le dataset ne contient aucun label d'origine humaine ou réglementaire."""
+
+
+def filtrer_verite_terrain(df, colonne=COLONNE_LABEL_SOURCE, origine_declaree=None):
+    """
+    Ne conserve que les lignes dont le label provient d'un humain, d'une règle
+    métier déterministe, ou d'une simulation — jamais du modèle lui-même.
+
+    `origine_declaree` : origine à appliquer aux lignes d'un dataset antérieur à
+    la colonne de provenance (option `--origine-labels` du pipeline). Sans elle,
+    un dataset sans provenance est refusé : rien ne permet d'y distinguer une
+    décision humaine d'une sortie de modèle.
+    """
+    if colonne not in df.columns:
+        if origine_declaree is None:
+            raise DatasetNonSupervise(
+                f"Colonne '{colonne}' absente du dataset : impossible de distinguer un "
+                "label humain d'une sortie de modèle. Ce jeu de données ne peut pas "
+                "être traité comme supervisé.\n"
+                "→ Soit alimenter la colonne à la collecte (/save_claim la remplit "
+                "désormais), soit déclarer explicitement l'origine au lancement :\n"
+                f"   python src/pipeline.py --origine-labels "
+                f"{{{','.join(LABEL_SOURCES_VERITE_TERRAIN)}}}"
+            )
+        if origine_declaree == LABEL_SOURCE_MODEL:
+            raise DatasetNonSupervise(
+                "Origine déclarée 'model' : des sorties de modèle ne constituent pas "
+                "une vérité terrain supervisée. Entraînement refusé."
+            )
+        print(
+            f"[Labels] Colonne '{colonne}' absente — origine déclarée au lancement : "
+            f"'{origine_declaree}' appliquée à {len(df)} lignes."
+        )
+        df = df.copy()
+        df[colonne] = origine_declaree
+
+    avant = len(df)
+    origines = df[colonne].astype(str).str.strip().str.lower()
+    df = df[origines.isin(LABEL_SOURCES_VERITE_TERRAIN)]
+
+    exclues = avant - len(df)
+    print(
+        f"[Labels] Vérité terrain : {len(df)} lignes conservées, "
+        f"{exclues} exclues (labels générés par le modèle ou origine inconnue)"
+    )
+    print(f"[Labels] Répartition des origines : {origines.value_counts().to_dict()}")
+
+    if df.empty:
+        raise DatasetNonSupervise(
+            "Aucune ligne de vérité terrain dans le dataset : toutes les résolutions "
+            "proviennent du modèle ou d'une origine inconnue. Il n'y a rien à "
+            "apprendre — l'entraînement est interrompu.\n"
+            "→ Collecter des décisions humaines (traitement des réclamations par les "
+            "vendeurs) avant de relancer."
+        )
+
     return df
 
 
@@ -250,6 +321,21 @@ def encoder_features(X_train, X_test):
 # ═══════════════════════════════════════════════════════════════
 if __name__ == "__main__":
 
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Pipeline de prétraitement Flowmerce")
+    parser.add_argument(
+        "--origine-labels",
+        choices=list(LABEL_SOURCES_VERITE_TERRAIN),
+        default=None,
+        help=(
+            "Origine des labels d'un dataset qui ne porte pas encore la colonne "
+            f"'{COLONNE_LABEL_SOURCE}' (ex. le dataset simulé : synthetic). "
+            "Sans cette option, un dataset sans provenance est refusé."
+        ),
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("  PIPELINE DE PRÉTRAITEMENT — FLOWMERCE")
     print("=" * 60 + "\n")
@@ -260,6 +346,9 @@ if __name__ == "__main__":
 
     # --- Étape 0 : Chargement (Hugging Face Hub ou CSV local) ---
     df = charger_donnees()
+
+    # --- Étape 0 bis : Vérité terrain uniquement ---
+    df = filtrer_verite_terrain(df, origine_declaree=args.origine_labels)
 
     # --- Étape 1 : Nettoyage ---
     df = nettoyer_donnees(df, colonnes_a_supprimer=COLONNES_A_SUPPRIMER, seuil_na=SEUIL_NA)
@@ -297,12 +386,17 @@ if __name__ == "__main__":
         "test_size":           TEST_SIZE,
         "random_state":        RANDOM_STATE,
         "colonnes_supprimees": COLONNES_A_SUPPRIMER,
+        # Traçabilité : sur quelle nature de labels ce modèle a été entraîné.
+        "origine_labels_declaree": args.origine_labels,
+        "label_sources_admises":   list(LABEL_SOURCES_VERITE_TERRAIN),
     }
     joblib.dump(training_params, TRAINING_PARAMS)
 
     print("=" * 60)
     print("  PIPELINE TERMINÉ")
     print("=" * 60)
+    print("  ⚠ L'encodeur vient de changer : le contrat de features sera")
+    print("    régénéré par src/training.py, avec les colonnes du modèle retenu.")
     print(f"  X_train : {X_train.shape}")
     print(f"  X_test  : {X_test.shape}")
     print(f"  Splits       → {SPLITS_FILE}")
