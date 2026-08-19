@@ -1,0 +1,125 @@
+{
+  "horodatage": "20260819_202633",
+  "date": "2026-08-19T20:31:36",
+  "modele": "Resolution",
+  "algorithme": "LightGBM + SMOTE",
+  "donnees": {
+    "lignes_train": 38204,
+    "lignes_test": 9551,
+    "n_features": 174,
+    "distribution_train": {
+      "Exchange": 22540,
+      "Reject": 8622,
+      "Repair": 7042
+    },
+    "distribution_test": {
+      "Exchange": 5635,
+      "Reject": 2156,
+      "Repair": 1760
+    }
+  },
+  "hyperparametres": {
+    "lgbm__subsample": 0.8,
+    "lgbm__num_leaves": 31,
+    "lgbm__n_estimators": 200,
+    "lgbm__min_child_samples": 10,
+    "lgbm__max_depth": 20,
+    "lgbm__learning_rate": 0.05,
+    "lgbm__colsample_bytree": 0.8
+  },
+  "f1_cv": 0.7447674735077122,
+  "seuils": {
+    "f1": 0.68,
+    "accuracy": 0.7
+  },
+  "metriques": {
+    "accuracy": 0.7429588524761805,
+    "precision": 0.7469987694648073,
+    "recall": 0.7429588524761805,
+    "f1": 0.7446768756052116,
+    "f1_macro": 0.7032064386027144,
+    "n_test": 9551,
+    "par_classe": {
+      "Exchange": {
+        "precision": 0.828524168351406,
+        "recall": 0.8,
+        "f1-score": 0.8140122788010112,
+        "support": 5635.0
+      },
+      "Reject": {
+        "precision": 0.6045072912063633,
+        "recall": 0.634508348794063,
+        "f1-score": 0.6191446028513238,
+        "support": 2156.0
+      },
+      "Repair": {
+        "precision": 0.660530590146183,
+        "recall": 0.6931818181818182,
+        "f1-score": 0.6764624341558082,
+        "support": 1760.0
+      }
+    },
+    "matrice": [
+      [
+        4508,
+        662,
+        465
+      ],
+      [
+        626,
+        1368,
+        162
+      ],
+      [
+        307,
+        233,
+        1220
+      ]
+    ],
+    "labels": [
+      "Exchange",
+      "Reject",
+      "Repair"
+    ]
+  },
+  "diagnostic": [
+    "Référence naïve (toujours « Exchange ») : 59.0% — le modèle apporte +15.3% d'accuracy.",
+    "Déséquilibre des classes 59% / 18% — privilégier le F1 macro à l'accuracy pour juger le modèle.",
+    "F1 CV 0.7448 vs F1 test 0.7447 (-0.0001) — généralisation cohérente."
+  ],
+  "top_features": {
+    "Days_to_Return": 1052,
+    "ratio_delai_retour": 794,
+    "Product_Price_DA": 770,
+    "Fraud_Score": 729,
+    "Total_Amount_DA": 688,
+    "ratio_prix_livraison": 667,
+    "Shipping_Cost_DA": 598,
+    "Customer_Age": 551,
+    "Customer_Past_Returns": 519,
+    "Product_Category_Vêtements": 349,
+    "Product_Category_Chaussures": 324,
+    "Product_Category_Sports & Loisirs": 312,
+    "Product_Category_Électronique": 304,
+    "Product_Category_Électroménager": 294,
+    "Product_Category_Maison & Jardin": 292,
+    "Return_Reason_Produit contrefait": 249,
+    "Order_Quantity": 228,
+    "Shop_Return_Window_Days": 224,
+    "Shipping_Method_Yalidine": 206,
+    "Customer_Wilaya_Oran": 189
+  },
+  "durees": {
+    "phase1_grid_search": 297.2051649093628,
+    "phase2_refit": 6.026060104370117,
+    "evaluation": 0.10173296928405762,
+    "sauvegarde": 0.10713601112365723,
+    "total": 303.480388879776
+  },
+  "accepte": true,
+  "artefacts": [
+    "/Users/salim/github/flowmerce/Flowmerce-ML/models/model_resolution.joblib",
+    "/Users/salim/github/flowmerce/Flowmerce-ML/models/train_columns.joblib",
+    "/Users/salim/github/flowmerce/Flowmerce-ML/contracts/feature_contract.json (vd720ad897bf56f11)"
+  ]
+}

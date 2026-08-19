@@ -27,6 +27,7 @@ Flowmerce/
 │   ├── pipeline.py                               # Nettoyage, feature engineering, encoding
 │   ├── preprocessing.py                          # Module partagé de prétraitement (inférence)
 │   ├── feature_contract.py                       # Construction / lecture du contrat de features
+│   ├── reporting.py                              # Mise en forme du rapport d'entraînement
 │   └── training.py                               # Entraînement, évaluation, sauvegarde
 │
 ├── contracts/
@@ -51,7 +52,7 @@ Flowmerce/
 │   ├── test_save_claim.py                        # Contrat de /save_claim
 │   └── test_train_serve_skew.py                  # Cohérence entraînement / inférence
 │
-├── logs/                                          # Rapports d'entraînement horodatés
+├── logs/                                          # Rapports d'entraînement horodatés (.txt + .json)
 │
 ├── config.py                                      # Configuration centralisée (chemins, constantes)
 ├── Dockerfile                                      # Image multi-stage (build + runtime non-root)
@@ -166,7 +167,29 @@ Paramètres explorés :
 }
 ```
 
-À la fin de l'entraînement, un **rapport horodaté** (`logs/training_AAAAMMJJ_HHMMSS.txt`) est généré avec les métriques, le classification report, la matrice de confusion et les temps d'exécution par phase.
+À la fin de l'entraînement, deux **rapports horodatés** sont écrits dans `logs/` :
+
+| Fichier | Usage |
+|---|---|
+| `training_AAAAMMJJ_HHMMSS.txt` | Rapport lisible, identique à la sortie console (sans les codes couleur) |
+| `training_AAAAMMJJ_HHMMSS.json` | Mêmes chiffres en JSON — pour comparer les runs entre eux |
+
+Le rapport texte est découpé en six sections :
+
+1. **Données** — volumétrie et répartition des classes, train vs test
+2. **Phase 1** — échantillon de tuning, hyperparamètres retenus, F1 en validation croisée
+3. **Phase 2** — configuration du refit final
+4. **Évaluation** — métriques globales face à leurs seuils, détail par classe (avec un
+   verdict *bon / correct / faible / critique / ignorée*), matrice de confusion en effectifs
+   **et en % par ligne**, confusions dominantes, puis un **diagnostic** automatique :
+   gain réel face à la référence naïve (toujours prédire la classe majoritaire), classes
+   jamais prédites, rappel ou précision insuffisants, déséquilibre des classes, écart
+   entre F1 CV et F1 test (surapprentissage)
+5. **Interprétabilité** — top features avec part relative et cumul
+6. **Décision et sauvegarde** — contrôle des seuils, artefacts écrits, temps par phase, bilan
+
+La barre de progression temps réel (`⏳`) ne s'affiche que sur un terminal interactif :
+elle n'est jamais écrite dans le fichier log, qui ne reçoit que la ligne de fin de phase.
 
 ### Étape 6 — Validation des performances
 
@@ -238,7 +261,8 @@ Génère (si les seuils de performance sont atteints) :
 - `models/model_resolution.joblib`
 - `models/train_columns.joblib`
 - `contracts/feature_contract.json` (contrat de features — voir ci-dessous)
-- `logs/training_<horodatage>.txt` (rapport d'entraînement)
+- `logs/training_<horodatage>.txt` (rapport d'entraînement lisible)
+- `logs/training_<horodatage>.json` (mêmes métriques, exploitables par script)
 
 ### 3. Lancer l'API
 

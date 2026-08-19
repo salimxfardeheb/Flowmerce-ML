@@ -1,0 +1,167 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║ RAPPORT D'ENTRAÎNEMENT — FLOWMERCE                                     ║
+║ Modèle    : Resolution (LightGBM + SMOTE)                              ║
+║ Exécution : 19/08/2026 à 20:26:33                                      ║
+║ Journal   : logs/training_20260819_202633.txt                          ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+━━━ 1 · DONNÉES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  VOLUMÉTRIE
+  ──────────────────────────────────────────────────────────────────────
+  Lignes d'entraînement       38 204
+  Lignes de test              9 551
+  Features en entrée          174
+
+  RÉPARTITION DES CLASSES
+  ──────────────────────────────────────────────────────────────────────
+  Classe             Train     Part      Test     Part  Équilibre
+  Exchange          22 540    59.0%     5 635    59.0%  █████████░░░░░░░
+  Reject             8 622    22.6%     2 156    22.6%  ████░░░░░░░░░░░░
+  Repair             7 042    18.4%     1 760    18.4%  ███░░░░░░░░░░░░░
+
+━━━ 2 · PHASE 1 — RECHERCHE D'HYPERPARAMÈTRES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  PARAMÈTRES DE RECHERCHE
+  ──────────────────────────────────────────────────────────────────────
+  Échantillon de tuning       12 000 lignes
+  Combinaisons testées        5 × 5 folds = 25 fits
+  Score optimisé              F1 pondéré (validation croisée)
+
+  HYPERPARAMÈTRES RETENUS
+  ──────────────────────────────────────────────────────────────────────
+    colsample_bytree          0.8
+    learning_rate             0.05
+    max_depth                 20
+    min_child_samples         10
+    n_estimators              200
+    num_leaves                31
+    subsample                 0.8
+
+  F1 CV (pondéré)             0.7448
+  ✔ Phase 1 — Grid search — terminé en 4m 57s
+
+━━━ 3 · PHASE 2 — ENTRAÎNEMENT FINAL ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  CONFIGURATION
+  ──────────────────────────────────────────────────────────────────────
+  Lignes d'entraînement       38 204
+  Rééquilibrage               SMOTE (k=5) + class_weight='balanced'
+
+  ✔ Phase 2 — Refit final — terminé en 0m 06s
+
+━━━ 4 · ÉVALUATION SUR LE JEU DE TEST ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  MÉTRIQUES GLOBALES — 9 551 lignes de test
+  ──────────────────────────────────────────────────────────────────────
+  Métrique            Valeur       Seuil      Écart  Statut  Jauge
+  Accuracy            0.7430      ≥ 0.70    +0.0430  PASS    █████████░░░
+  F1 (pondéré)        0.7447      ≥ 0.68    +0.0647  PASS    █████████░░░
+  Précision (p.)      0.7470           —          —  —       █████████░░░
+  Rappel (p.)         0.7430           —          —  —       █████████░░░
+
+  DÉTAIL PAR CLASSE
+  ──────────────────────────────────────────────────────────────────────
+  Classe             Support   Part  Précis.  Rappel     F1  Qualité
+  Exchange             5 635  59.0%     0.83    0.80   0.81  ● bon
+  Reject               2 156  22.6%     0.60    0.63   0.62  ● faible
+  Repair               1 760  18.4%     0.66    0.69   0.68  ● correct
+  ──────────────────────────────────────────────────────────────────────
+  Moyenne macro                         0.70    0.71   0.70
+  Moyenne pondérée                      0.75    0.74   0.74
+
+    Précision = parmi les prédictions de cette classe, part de justes.
+    Rappel    = parmi les cas réels de cette classe, part de retrouvés.
+
+  MATRICE DE CONFUSION — ligne = réel, colonne = prédit
+  ──────────────────────────────────────────────────────────────────────
+  réel \ prédit        Exchange        Reject        Repair    Total
+  Exchange         4 508  80.0%    662  11.7%    465   8.3%    5 635
+  Reject             626  29.0%  1 368  63.5%    162   7.5%    2 156
+  Repair             307  17.4%    233  13.2%  1 220  69.3%    1 760
+
+  Confusions dominantes
+    Exchange      → Reject            662 cas   (11.7% des Exchange réels)
+    Reject        → Exchange          626 cas   (29.0% des Reject réels)
+    Exchange      → Repair            465 cas   (8.3% des Exchange réels)
+    Repair        → Exchange          307 cas   (17.4% des Repair réels)
+    Repair        → Reject            233 cas   (13.2% des Repair réels)
+
+  DIAGNOSTIC
+  ──────────────────────────────────────────────────────────────────────
+    ✔ Référence naïve (toujours « Exchange ») : 59.0% — le modèle apporte
+      +15.3% d'accuracy.
+    ▲ Déséquilibre des classes 59% / 18% — privilégier le F1 macro à
+      l'accuracy pour juger le modèle.
+    ✔ F1 CV 0.7448 vs F1 test 0.7447 (-0.0001) — généralisation cohérente.
+
+━━━ 5 · INTERPRÉTABILITÉ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  TOP 20 FEATURES — poids dans les décisions de l'arbre
+  ──────────────────────────────────────────────────────────────────────
+   1. Days_to_Return                 5.84%  ████████████████  cumul  5.8%
+   2. ratio_delai_retour             4.41%  ████████████░░░░  cumul 10.3%
+   3. Product_Price_DA               4.28%  ████████████░░░░  cumul 14.5%
+   4. Fraud_Score                    4.05%  ███████████░░░░░  cumul 18.6%
+   5. Total_Amount_DA                3.82%  ██████████░░░░░░  cumul 22.4%
+   6. ratio_prix_livraison           3.71%  ██████████░░░░░░  cumul 26.1%
+   7. Shipping_Cost_DA               3.32%  █████████░░░░░░░  cumul 29.4%
+   8. Customer_Age                   3.06%  ████████░░░░░░░░  cumul 32.5%
+   9. Customer_Past_Returns          2.88%  ████████░░░░░░░░  cumul 35.4%
+  10. Product_Category_Vêtements     1.94%  █████░░░░░░░░░░░  cumul 37.3%
+  11. Product_Category_Chaussures    1.80%  █████░░░░░░░░░░░  cumul 39.1%
+  12. Product_Category_Sports & …    1.73%  █████░░░░░░░░░░░  cumul 40.8%
+  13. Product_Category_Électroni…    1.69%  █████░░░░░░░░░░░  cumul 42.5%
+  14. Product_Category_Électromé…    1.63%  ████░░░░░░░░░░░░  cumul 44.2%
+  15. Product_Category_Maison & …    1.62%  ████░░░░░░░░░░░░  cumul 45.8%
+  16. Return_Reason_Produit cont…    1.38%  ████░░░░░░░░░░░░  cumul 47.2%
+  17. Order_Quantity                 1.27%  ███░░░░░░░░░░░░░  cumul 48.4%
+  18. Shop_Return_Window_Days        1.24%  ███░░░░░░░░░░░░░  cumul 49.7%
+  19. Shipping_Method_Yalidine       1.14%  ███░░░░░░░░░░░░░  cumul 50.8%
+  20. Customer_Wilaya_Oran           1.05%  ███░░░░░░░░░░░░░  cumul 51.9%
+
+    Les 20 premières features portent 51.9% du signal (174 features au
+    total, 48.1% pour le reste).
+
+━━━ 6 · DÉCISION ET SAUVEGARDE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  CONTRÔLE DES SEUILS — Resolution
+  ──────────────────────────────────────────────────────────────────────
+  F1 pondéré          0.7447   requis ≥ 0.68   (+0.0647)   PASS
+  Accuracy            0.7430   requis ≥ 0.70   (+0.0430)   PASS
+
+  ARTEFACTS ÉCRITS
+  ──────────────────────────────────────────────────────────────────────
+  ✔ /Users/salim/github/flowmerce/Flowmerce-ML/models/model_resolution.joblib
+  ✔ /Users/salim/github/flowmerce/Flowmerce-ML/models/train_columns.joblib
+  ✔ /Users/salim/github/flowmerce/Flowmerce-ML/contracts/feature_contract.json  (version d720ad897bf56f11)
+
+  TEMPS D'EXÉCUTION
+  ──────────────────────────────────────────────────────────────────────
+  Phase                                  Durée     Part  Répartition
+  Phase 1 — Grid search                 4m 57s    97.9%  ████████████████
+  Phase 2 — Refit final                 0m 06s     2.0%  ░░░░░░░░░░░░░░░░
+  Évaluation + importances              0m 00s     0.0%  ░░░░░░░░░░░░░░░░
+  Sauvegarde des artefacts              0m 00s     0.0%  ░░░░░░░░░░░░░░░░
+  Chargement + divers                   0m 00s     0.0%  ░░░░░░░░░░░░░░░░
+  ──────────────────────────────────────────────────────────────────────
+  Total                                 5m 03s   100.0%
+
+╔════════════════════════════════════════════════════════════════════════╗
+║ MODÈLE RETENU — artefacts sauvegardés                                  ║
+╟────────────────────────────────────────────────────────────────────────╢
+║   F1 pondéré 0.7447 ≥ 0.68 requis (+0.0647) — PASS                     ║
+║   Accuracy 0.7430 ≥ 0.70 requis (+0.0430) — PASS                       ║
+║                                                                        ║
+║   → /Users/salim/github/flowmerce/Flowmerce-ML/models/model_resolution.joblib ║
+║   → /Users/salim/github/flowmerce/Flowmerce-ML/models/train_columns.joblib ║
+║   → /Users/salim/github/flowmerce/Flowmerce-ML/contracts/feature_contract.json (vd720ad897bf56f11) ║
+╟────────────────────────────────────────────────────────────────────────╢
+║   Durée totale : 5m 03s                                                ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+    Prochaine étape — répercuter le contrat côté web app :
+      cp contracts/feature_contract.json ../flowmerce-web-app/lib/ml/feature-contract.json
+
+    Rapport texte : logs/training_20260819_202633.txt
+    Rapport JSON  : logs/training_20260819_202633.json

@@ -11,8 +11,6 @@ from sklearn.metrics import (
     precision_score,
     recall_score,
     f1_score,
-    classification_report,
-    confusion_matrix,
 )
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
@@ -35,6 +33,7 @@ from config import (
     RESOLUTION_LABELS,
 )
 from src.feature_contract import contrat_depuis_artefacts, ecrire_contrat
+from src import reporting as rp
 
 # ─────────────────────────────────────────────────────────────
 #  CONFIGURATION MACHINE
@@ -42,39 +41,50 @@ from src.feature_contract import contrat_depuis_artefacts, ecrire_contrat
 # ─────────────────────────────────────────────────────────────
 N_JOBS_LGBM   = -1   # LightGBM utilise tous les cœurs pour construire les arbres
 N_JOBS_SEARCH = 1    # 2 folds en parallèle max — évite la surcharge mémoire
-TUNE_SAMPLE   = 12000  # lignes pour le grid search
+TUNE_SAMPLE   = 35000  # lignes pour le grid search
 
 
 # ═══════════════════════════════════════════════════════════════
 #  TIMER TEMPS RÉEL
 # ═══════════════════════════════════════════════════════════════
 class LiveTimer:
-    """Affiche le temps écoulé en continu sur le terminal pendant une phase."""
+    """
+    Affiche le temps écoulé en continu sur le terminal pendant une phase.
+    Le rafraîchissement (\\r) ne part que vers la console : le fichier log
+    ne reçoit que la ligne finale, une fois la phase terminée.
+    """
 
-    def __init__(self, label):
+    def __init__(self, label, flux=None):
         self.label = label
+        self.flux = flux if flux is not None else sys.stdout
+        self.interactif = bool(getattr(self.flux, "isatty", lambda: False)())
         self._stop = threading.Event()
         self._t0 = time.time()
         self._thread = threading.Thread(target=self._run, daemon=True)
 
+    def _ecrire_console(self, texte):
+        ecrire = getattr(self.flux, "ecrire_console", self.flux.write)
+        ecrire(texte)
+
     def _run(self):
         while not self._stop.is_set():
-            elapsed = time.time() - self._t0
-            m, s = divmod(int(elapsed), 60)
-            print(f"\r  [TIMER] {self.label} — {m}m {s:02d}s", end="", flush=True)
+            m, s = divmod(int(time.time() - self._t0), 60)
+            self._ecrire_console(f"\r  ⏳ {self.label} — {m}m {s:02d}s")
             time.sleep(1)
 
     def start(self):
         self._t0 = time.time()
-        self._thread.start()
+        if self.interactif:
+            self._thread.start()
         return self
 
     def stop(self):
         self._stop.set()
-        self._thread.join()
+        if self.interactif:
+            self._thread.join()
+            self._ecrire_console("\r" + " " * (rp.LARGEUR - 2) + "\r")
         elapsed = time.time() - self._t0
-        m, s = divmod(int(elapsed), 60)
-        print(f"\r  [OK]    {self.label} — {m}m {s:02d}s", flush=True)
+        print(f"  {rp.c('✔', 'vert')} {self.label} — terminé en {rp.fmt_duree(elapsed)}")
         return elapsed
 
 
@@ -82,19 +92,70 @@ class LiveTimer:
 #  CAPTURE DE LA SORTIE CONSOLE (tee vers un fichier log)
 # ═══════════════════════════════════════════════════════════════
 class Tee:
-    """Duplique tout ce qui est écrit sur stdout vers la console ET un fichier."""
+    """
+    Duplique stdout vers la console ET un fichier.
+    Les codes couleur sont retirés côté fichier : le log reste lisible
+    dans un éditeur, la console garde ses couleurs.
+    """
 
-    def __init__(self, *flux):
-        self.flux = flux
+    def __init__(self, console, fichier):
+        self.console = console
+        self.fichier = fichier
 
     def write(self, data):
-        for f in self.flux:
-            f.write(data)
-            f.flush()
+        self.console.write(data)
+        self.console.flush()
+        self.fichier.write(rp.sans_ansi(data))
+        self.fichier.flush()
+
+    def ecrire_console(self, data):
+        """Sortie éphémère (barres de progression) — jamais journalisée."""
+        self.console.write(data)
+        self.console.flush()
 
     def flush(self):
-        for f in self.flux:
-            f.flush()
+        self.console.flush()
+        self.fichier.flush()
+
+    def isatty(self):
+        return bool(getattr(self.console, "isatty", lambda: False)())
+
+
+# ═══════════════════════════════════════════════════════════════
+#  APERÇU DES DONNÉES
+# ═══════════════════════════════════════════════════════════════
+def afficher_donnees(X_train, X_test, y_train, y_test, labels):
+    """Volumétrie et répartition des classes, train vs test."""
+    rp.sous_section("VOLUMÉTRIE")
+    rp.cle_valeur("Lignes d'entraînement", f"{rp.fmt_entier(len(y_train))}")
+    rp.cle_valeur("Lignes de test", f"{rp.fmt_entier(len(y_test))}")
+    rp.cle_valeur("Features en entrée", f"{rp.fmt_entier(X_train.shape[1])}")
+
+    dist_train = pd.Series(y_train).value_counts()
+    dist_test = pd.Series(y_test).value_counts()
+
+    rp.sous_section("RÉPARTITION DES CLASSES")
+    print(
+        f"  {rp.pad('Classe', 14)}{rp.pad('Train', 10, '>')}{rp.pad('Part', 9, '>')}"
+        f"{rp.pad('Test', 10, '>')}{rp.pad('Part', 9, '>')}  Équilibre"
+    )
+    for i, label in enumerate(labels):
+        n_tr = int(dist_train.get(i, 0))
+        n_te = int(dist_test.get(i, 0))
+        p_tr = n_tr / len(y_train) if len(y_train) else 0.0
+        p_te = n_te / len(y_test) if len(y_test) else 0.0
+        print(
+            f"  {rp.pad(label, 14)}{rp.pad(rp.fmt_entier(n_tr), 10, '>')}"
+            f"{rp.pad(f'{p_tr:.1%}', 9, '>')}{rp.pad(rp.fmt_entier(n_te), 10, '>')}"
+            f"{rp.pad(f'{p_te:.1%}', 9, '>')}  {rp.barre(p_tr, 16)}"
+        )
+    return {
+        "lignes_train": int(len(y_train)),
+        "lignes_test": int(len(y_test)),
+        "n_features": int(X_train.shape[1]),
+        "distribution_train": {labels[i]: int(dist_train.get(i, 0)) for i in range(len(labels))},
+        "distribution_test": {labels[i]: int(dist_test.get(i, 0)) for i in range(len(labels))},
+    }
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -103,7 +164,7 @@ class Tee:
 def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_SEARCH):
     """
     Recherche les meilleurs hyperparamètres sur un sous-échantillon (rapide).
-    Retourne les meilleurs params sans refit sur tout le dataset.
+    Retourne (meilleurs params, meilleur score CV) sans refit sur tout le dataset.
     """
     param_distributions = {
         "lgbm__n_estimators":      [200, 400, 600],
@@ -134,22 +195,25 @@ def trouver_meilleurs_params(X_tune, y_tune, nom_modele="modele", n_iter=N_ITER_
         scoring="f1_weighted",
         random_state=RANDOM_STATE,
         n_jobs=N_JOBS_SEARCH,       # ← 2 folds en parallèle
-        verbose=1,
+        verbose=0,                  # ← la progression est portée par LiveTimer
         refit=False,                # ← pas de refit ici, on le fait sur 50k
     )
 
-    dist = dict(pd.Series(y_tune).value_counts())
-    print(f"[Tuning] Distribution échantillon ({len(y_tune)} lignes) — {nom_modele} : {dist}")
+    rp.sous_section("PARAMÈTRES DE RECHERCHE")
+    rp.cle_valeur("Échantillon de tuning", f"{rp.fmt_entier(len(y_tune))} lignes")
+    rp.cle_valeur("Combinaisons testées", f"{n_iter} × 5 folds = {n_iter * 5} fits")
+    rp.cle_valeur("Score optimisé", "F1 pondéré (validation croisée)")
 
     search.fit(X_tune, y_tune)
 
     best = search.best_params_
-    print(f"[Tuning] Meilleurs params ({nom_modele}) :")
-    for k, v in best.items():
-        print(f"         {k}: {v}")
-    print(f"[Tuning] F1 CV (weighted) : {search.best_score_:.4f}\n")
+    rp.sous_section("HYPERPARAMÈTRES RETENUS")
+    for k, v in sorted(best.items()):
+        rp.cle_valeur(k.replace("lgbm__", "  "), v)
+    print()
+    rp.cle_valeur("F1 CV (pondéré)", rp.c(f"{search.best_score_:.4f}", "gras"))
 
-    return best
+    return best, float(search.best_score_)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -166,8 +230,10 @@ def entrainer_final(X_train, y_train, best_params, nom_modele="modele"):
         if k.startswith("lgbm__")
     }
 
-    dist = dict(pd.Series(y_train).value_counts())
-    print(f"[Training] Distribution complète — {nom_modele} : {dist}")
+    rp.sous_section("CONFIGURATION")
+    rp.cle_valeur("Lignes d'entraînement", rp.fmt_entier(len(y_train)))
+    rp.cle_valeur("Rééquilibrage", "SMOTE (k=5) + class_weight='balanced'")
+    print()
 
     pipeline_final = ImbPipeline([
         ("smote", SMOTE(random_state=RANDOM_STATE, k_neighbors=5)),
@@ -182,7 +248,6 @@ def entrainer_final(X_train, y_train, best_params, nom_modele="modele"):
     ])
 
     pipeline_final.fit(X_train, y_train)
-    print(f"[Training] Refit final terminé sur {len(y_train)} lignes.\n")
 
     return pipeline_final
 
@@ -190,33 +255,38 @@ def entrainer_final(X_train, y_train, best_params, nom_modele="modele"):
 # ═══════════════════════════════════════════════════════════════
 #  ÉVALUATION
 # ═══════════════════════════════════════════════════════════════
-def evaluer_modele(model, X_test, y_test, nom_modele="modele", labels=None):
-
+def evaluer_modele(model, X_test, y_test, nom_modele="modele", labels=None,
+                   seuils=None, f1_cv=None):
+    """
+    Évalue le modèle et publie le rapport lisible :
+    métriques globales, détail par classe, matrice de confusion, diagnostic.
+    """
+    seuils = seuils or {}
     y_pred = model.predict(X_test)
 
-    acc  = accuracy_score(y_test, y_pred)
-    prec = precision_score(y_test, y_pred, average="weighted", zero_division=0)
-    rec  = recall_score(y_test, y_pred, average="weighted", zero_division=0)
-    f1   = f1_score(y_test, y_pred, average="weighted", zero_division=0)
+    metriques = {
+        "accuracy":  accuracy_score(y_test, y_pred),
+        "precision": precision_score(y_test, y_pred, average="weighted", zero_division=0),
+        "recall":    recall_score(y_test, y_pred, average="weighted", zero_division=0),
+        "f1":        f1_score(y_test, y_pred, average="weighted", zero_division=0),
+    }
 
-    print(f"\n{'=' * 50}")
-    print(f"  ÉVALUATION — {nom_modele}")
-    print(f"{'=' * 50}")
-    print(f"  Accuracy  : {acc:.4f}")
-    print(f"  Precision : {prec:.4f}")
-    print(f"  Recall    : {rec:.4f}")
-    print(f"  F1-score  : {f1:.4f}")
-    print(f"{'=' * 50}")
+    rapport, cm = rp.evaluer(y_test, y_pred, labels)
 
-    print(f"\n[Classification Report]\n")
-    print(classification_report(y_test, y_pred, target_names=labels, zero_division=0))
+    rp.bloc_metriques(metriques, seuils, len(y_test))
+    rp.bloc_par_classe(rapport, labels)
+    rp.bloc_matrice(cm, labels)
+    constats = rp.bloc_diagnostic(metriques, rapport, labels, cm, f1_cv=f1_cv)
 
-    print(f"[Matrice de Confusion]")
-    cm = confusion_matrix(y_test, y_pred)
-    print(pd.DataFrame(cm, index=labels, columns=labels))
-    print()
-
-    return {"accuracy": acc, "precision": prec, "recall": rec, "f1": f1}
+    metriques.update({
+        "f1_macro":   rapport["macro avg"]["f1-score"],
+        "n_test":     int(len(y_test)),
+        "par_classe": {l: rapport[l] for l in labels},
+        "matrice":    cm.tolist(),
+        "labels":     list(labels),
+        "diagnostic": constats,
+    })
+    return metriques
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -224,24 +294,13 @@ def evaluer_modele(model, X_test, y_test, nom_modele="modele", labels=None):
 # ═══════════════════════════════════════════════════════════════
 def afficher_feature_importances(model, feature_names, top_n=20):
 
-    lgbm_model   = model.named_steps["lgbm"]
-    importances  = pd.Series(
+    lgbm_model  = model.named_steps["lgbm"]
+    importances = pd.Series(
         lgbm_model.feature_importances_,
         index=feature_names
     ).sort_values(ascending=False)
 
-    # LightGBM renvoie un nombre de splits (entiers) — on normalise pour l'affichage
-    total = importances.sum()
-    importances_norm = importances / total if total else importances
-
-    print(f"\n{'─' * 50}")
-    print(f"  TOP {top_n} FEATURE IMPORTANCES")
-    print(f"{'─' * 50}")
-    for i, feat in enumerate(importances.head(top_n).index, 1):
-        imp = importances_norm[feat]
-        bar = "█" * int(imp * 200)
-        print(f"  {i:2d}. {feat:<35s} {imp:.4f}  {bar}")
-    print(f"{'─' * 50}\n")
+    rp.bloc_importances(importances, top_n=top_n)
 
     return importances
 
@@ -250,33 +309,35 @@ def afficher_feature_importances(model, feature_names, top_n=20):
 #  DÉCISION DE PERFORMANCE
 # ═══════════════════════════════════════════════════════════════
 def verifier_performance(metrics, nom_modele, seuil_f1, seuil_acc=SEUIL_ACCURACY):
+    """Compare les métriques aux seuils. Retourne (accepté, motifs lisibles)."""
+    controles = [
+        ("F1 pondéré", metrics["f1"], seuil_f1),
+        ("Accuracy",   metrics["accuracy"], seuil_acc),
+    ]
+    motifs = []
+    accepte = True
 
-    f1  = metrics["f1"]
-    acc = metrics["accuracy"]
+    rp.sous_section(f"CONTRÔLE DES SEUILS — {nom_modele}")
+    for nom, valeur, seuil in controles:
+        ok = valeur >= seuil
+        accepte = accepte and ok
+        etat = rp.c("PASS", "vert") if ok else rp.c("FAIL", "rouge")
+        ecart = valeur - seuil
+        print(
+            f"  {rp.pad(nom, 16)}{rp.pad(f'{valeur:.4f}', 10, '>')}"
+            f"   requis ≥ {seuil:.2f}   ({ecart:+.4f})   {etat}"
+        )
+        motifs.append(
+            f"{nom} {valeur:.4f} {'≥' if ok else '<'} {seuil:.2f} requis "
+            f"({ecart:+.4f}) — {'PASS' if ok else 'FAIL'}"
+        )
 
-    print(f"\n{'─' * 50}")
-    print(f"  DÉCISION — {nom_modele}")
-    print(f"{'─' * 50}")
-    print(f"  F1-score  : {f1:.4f}  (seuil >= {seuil_f1})  {'PASS' if f1 >= seuil_f1 else 'FAIL'}")
-    print(f"  Accuracy  : {acc:.4f}  (seuil >= {seuil_acc})  {'PASS' if acc >= seuil_acc else 'FAIL'}")
-
-    if f1 >= seuil_f1 and acc >= seuil_acc:
-        print(f"\n  >>> RÉSULTAT : Performance ACCEPTABLE — prêt pour la sauvegarde")
-        print(f"{'─' * 50}\n")
-        return True
-    else:
-        print(f"\n  >>> RÉSULTAT : Performance INSUFFISANTE — révision nécessaire")
-        if f1 < seuil_f1:
-            print(f"     - F1 trop bas")
-        if acc < seuil_acc:
-            print(f"     - Accuracy trop basse")
-        print(f"{'─' * 50}\n")
-        return False
+    return accepte, motifs
 
 
 def sauvegarder(objet, nom_fichier):
     joblib.dump(objet, nom_fichier, compress=3)
-    print(f"[Sauvegarde] {nom_fichier}")
+    print(f"  {rp.c('✔', 'vert')} {nom_fichier}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -291,16 +352,26 @@ if __name__ == "__main__":
     os.makedirs(logs_dir, exist_ok=True)
     horodatage = datetime.now().strftime("%Y%m%d_%H%M%S")
     chemin_log = os.path.join(logs_dir, f"training_{horodatage}.txt")
+    chemin_json = os.path.join(logs_dir, f"training_{horodatage}.json")
 
     stdout_original = sys.stdout
     log_file = open(chemin_log, "w", encoding="utf-8")
     sys.stdout = Tee(stdout_original, log_file)
+    rp.configurer_couleurs(sys.stdout)
 
-    print("=" * 60)
-    print("  PIPELINE D'ENTRAÎNEMENT — FLOWMERCE (LightGBM)")
-    print("=" * 60 + "\n")
+    rp.titre(
+        "Rapport d'entraînement — Flowmerce",
+        "Modèle    : Resolution (LightGBM + SMOTE)",
+        f"Exécution : {datetime.now().strftime('%d/%m/%Y à %H:%M:%S')}",
+        f"Journal   : logs/training_{horodatage}.txt",
+    )
 
-    # ── Charger les splits encodés ────────────────────────────
+    labels_res = [RESOLUTION_LABELS[k] for k in sorted(RESOLUTION_LABELS)]
+    seuils = {"f1": SEUIL_F1_RESOLUTION, "accuracy": SEUIL_ACCURACY}
+
+    # ── 1. Données ────────────────────────────────────────────
+    rp.section(1, "Données")
+
     with open(SPLITS_FILE, "rb") as f:
         splits = pickle.load(f)
 
@@ -309,58 +380,64 @@ if __name__ == "__main__":
     y_res_train = splits["y_res_train"]
     y_res_test  = splits["y_res_test"]
 
-    # ── MODÈLE — Resolution ───────────────────────────────────
-    print("\n" + "─" * 60)
-    print("  MODÈLE : RESOLUTION (LightGBM)")
-    print("─" * 60 + "\n")
+    infos_donnees = afficher_donnees(
+        X_train, X_test, y_res_train, y_res_test, labels_res
+    )
 
-    t1 = time.time()
-    labels_res = list(RESOLUTION_LABELS.values())
+    # ── 2. Phase 1 : recherche d'hyperparamètres ──────────────
+    rp.section(2, "Phase 1 — Recherche d'hyperparamètres")
 
-    # Phase 1 : grid search rapide sur sous-échantillon
-    print(f"[Phase 1] Grid search sur {TUNE_SAMPLE} lignes...\n")
-    idx_tune  = np.random.RandomState(RANDOM_STATE).choice(
+    idx_tune = np.random.RandomState(RANDOM_STATE).choice(
         len(y_res_train), size=min(TUNE_SAMPLE, len(y_res_train)), replace=False
     )
     X_tune = X_train.iloc[idx_tune]
     y_tune = pd.Series(y_res_train).iloc[idx_tune]
 
     timer1 = LiveTimer("Phase 1 — Grid search").start()
-    best_params = trouver_meilleurs_params(
+    best_params, f1_cv = trouver_meilleurs_params(
         X_tune, y_tune, nom_modele="Resolution"
     )
     t_phase1 = timer1.stop()
 
-    # Phase 2 : refit final sur 100% des données d'entraînement
-    print(f"[Phase 2] Refit final sur {len(y_res_train)} lignes...\n")
+    # ── 3. Phase 2 : refit final ──────────────────────────────
+    rp.section(3, "Phase 2 — Entraînement final")
+
     timer2 = LiveTimer("Phase 2 — Refit final").start()
     model_resolution = entrainer_final(
         X_train, y_res_train, best_params, nom_modele="Resolution"
     )
     t_phase2 = timer2.stop()
 
-    # Évaluation
+    # ── 4. Évaluation ─────────────────────────────────────────
+    rp.section(4, "Évaluation sur le jeu de test")
+
+    t_eval = time.time()
     metrics_res = evaluer_modele(
         model_resolution, X_test, y_res_test,
         nom_modele="Resolution", labels=labels_res,
+        seuils=seuils, f1_cv=f1_cv,
     )
-    afficher_feature_importances(model_resolution, X_train.columns)
-    res_ok = verifier_performance(
+
+    # ── 5. Interprétabilité ───────────────────────────────────
+    rp.section(5, "Interprétabilité")
+    importances = afficher_feature_importances(model_resolution, X_train.columns)
+    t_eval = time.time() - t_eval
+
+    # ── 6. Décision et sauvegarde ─────────────────────────────
+    rp.section(6, "Décision et sauvegarde")
+
+    res_ok, motifs = verifier_performance(
         metrics_res, "Resolution", seuil_f1=SEUIL_F1_RESOLUTION,
     )
 
-    t_modele = time.time() - t1
-    print(f"  Temps modèle Resolution : {t_modele:.1f}s")
-    print(f"[Rapport] Sauvegarde -> {chemin_log}")
-
-    # ── SAUVEGARDE CONDITIONNELLE ─────────────────────────────
-    print("\n" + "=" * 60)
-    print("  BILAN FINAL")
-    print("=" * 60)
+    t_save = time.time()
+    artefacts = []
 
     if res_ok:
+        rp.sous_section("ARTEFACTS ÉCRITS")
         sauvegarder(model_resolution, MODEL_RESOLUTION)
         sauvegarder(list(X_train.columns), TRAIN_COLUMNS)
+        artefacts += [str(MODEL_RESOLUTION), str(TRAIN_COLUMNS)]
 
         # Contrat de features — dérivé du jeu d'artefacts qui vient d'être figé.
         # C'est ici, et nulle part ailleurs, que le vocabulaire servi est défini :
@@ -372,21 +449,67 @@ if __name__ == "__main__":
             RESOLUTION_LABELS,
         )
         ecrire_contrat(contrat)
-        print(f"[Sauvegarde] Contrat de features -> {FEATURE_CONTRACT}")
-        print(f"             version : {contrat['contract_version']}")
-        print("  ⚠ Répercuter la copie côté web app :")
-        print("    cp contracts/feature_contract.json "
-              "../flowmerce-web-app/lib/ml/feature-contract.json")
-
-        print(f"\n  Modèle prêt pour le déploiement API !")
+        print(f"  {rp.c('✔', 'vert')} {FEATURE_CONTRACT}  "
+              f"(version {contrat['contract_version']})")
+        artefacts.append(f"{FEATURE_CONTRACT} (v{contrat['contract_version']})")
     else:
-        print("[SKIP] model_resolution NON sauvegardé (performance insuffisante)")
-        print(f"\n  Modèle n'a pas passé les seuils — révision nécessaire.")
+        rp.sous_section("ARTEFACTS")
+        print(f"  {rp.c('✖', 'rouge')} Aucun fichier écrit — les seuils ne sont pas atteints.")
 
+    t_save = time.time() - t_save
     elapsed = time.time() - t_total
-    minutes, seconds = divmod(int(elapsed), 60)
-    print(f"\n  Temps total : {minutes}m {seconds:02d}s")
-    print("=" * 60)
+
+    rp.bloc_durees(
+        [
+            ("Phase 1 — Grid search",     t_phase1),
+            ("Phase 2 — Refit final",     t_phase2),
+            ("Évaluation + importances",  t_eval),
+            ("Sauvegarde des artefacts",  t_save),
+            ("Chargement + divers",       max(0.0, elapsed - t_phase1 - t_phase2 - t_eval - t_save)),
+        ],
+        elapsed,
+    )
+
+    rp.bloc_bilan(res_ok, motifs, artefacts, elapsed)
+
+    if res_ok:
+        print()
+        rp.puce("Prochaine étape — répercuter le contrat côté web app :", "jaune")
+        rp.puce("  cp contracts/feature_contract.json "
+                "../flowmerce-web-app/lib/ml/feature-contract.json",
+                "dim", replier=False)
+    else:
+        print()
+        rp.puce("Pistes — élargir N_ITER_SEARCH / TUNE_SAMPLE, revoir les features "
+                "des classes en échec, ou ajuster les seuils dans config.py.", "jaune")
+
+    # ── Rapport machine, pour comparer les runs entre eux ──────
+    rapport_json = rp.construire_rapport(
+        horodatage=horodatage,
+        date=datetime.now().isoformat(timespec="seconds"),
+        modele="Resolution",
+        algorithme="LightGBM + SMOTE",
+        donnees=infos_donnees,
+        hyperparametres=best_params,
+        f1_cv=f1_cv,
+        seuils={"f1": SEUIL_F1_RESOLUTION, "accuracy": SEUIL_ACCURACY},
+        metriques={k: v for k, v in metrics_res.items() if k != "diagnostic"},
+        diagnostic=metrics_res["diagnostic"],
+        top_features=importances.head(20).to_dict(),
+        durees={
+            "phase1_grid_search": t_phase1,
+            "phase2_refit": t_phase2,
+            "evaluation": t_eval,
+            "sauvegarde": t_save,
+            "total": elapsed,
+        },
+        accepte=res_ok,
+        artefacts=artefacts,
+    )
+    rp.ecrire_rapport_json(chemin_json, rapport_json)
+    print()
+    rp.puce(f"Rapport texte : logs/training_{horodatage}.txt", "dim")
+    rp.puce(f"Rapport JSON  : logs/training_{horodatage}.json", "dim")
 
     # ── Fin de la capture console ──────────────────────────────
     sys.stdout = stdout_original

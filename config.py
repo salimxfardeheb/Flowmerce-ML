@@ -217,6 +217,6 @@ SEUIL_NA           = 0.30
 TEST_SIZE          = 0.2
 RANDOM_STATE       = 42
 PERCENTILE_RISQUE  = 75
-N_ITER_SEARCH      = 5
+N_ITER_SEARCH      = 30
 
 USE_HF_MODELS= True
