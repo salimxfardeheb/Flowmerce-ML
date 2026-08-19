@@ -26,15 +26,30 @@ Flowmerce/
 ├── src/
 │   ├── pipeline.py                               # Nettoyage, feature engineering, encoding
 │   ├── preprocessing.py                          # Module partagé de prétraitement (inférence)
+│   ├── feature_contract.py                       # Construction / lecture du contrat de features
 │   └── training.py                               # Entraînement, évaluation, sauvegarde
 │
+├── contracts/
+│   └── feature_contract.json                     # Contrat de features versionné (vocabulaire servi)
+│
 ├── api/
-│   ├── server.py                                 # API FastAPI v4.0.0 — /predict, /save_claim
+│   ├── server.py                                 # API FastAPI v5.0.0 — /predict, /save_claim, /feature-contract
 │   └── .env                                       # Clé interne (INTERNAL_API_KEY)
 │
+├── scripts/
+│   ├── build_feature_contract.py                 # Régénère / vérifie (--check) le contrat de features
+│   ├── push_models.py                            # Publie les artefacts sur Hugging Face Hub
+│   ├── push_dataset.py                           # Publie le dataset collecté sur Hugging Face Hub
+│   └── vocabulary_report.py                      # Compare le vocabulaire collecté à celui du modèle
+│
 ├── tests/
-│   ├── conftest.py                                # Fixtures (artefacts neutralisés, CSV temporaire)
-│   └── test_save_claim.py                         # Contrat de /save_claim
+│   ├── conftest.py                               # Fixtures (artefacts neutralisés, CSV temporaire)
+│   ├── test_auth.py                              # Authentification fail-closed (401 / 403 / 503)
+│   ├── test_feature_contract.py                  # Le contrat versionné correspond aux artefacts
+│   ├── test_ground_truth.py                      # Collecte de la vérité terrain (/save_claim)
+│   ├── test_predict_contract.py                  # Contrat de /predict (schéma, 409 de version)
+│   ├── test_save_claim.py                        # Contrat de /save_claim
+│   └── test_train_serve_skew.py                  # Cohérence entraînement / inférence
 │
 ├── logs/                                          # Rapports d'entraînement horodatés
 │
@@ -241,14 +256,26 @@ uvicorn api.server:app --reload --port 8000
 
 L'interface Swagger est disponible sur `http://localhost:8000/docs`.
 
-### 4. Publier les modèles sur Hugging Face Hub
+### 4. Publier les artefacts sur Hugging Face Hub
 
 ```bash
 huggingface-cli login   # une seule fois, token avec accès Write
-python scripts/push_to_hub.py --repo-id <username>/flowmerce-resolution-model
+python scripts/push_models.py --repo-id <username>/flowmerce-resolution-model
 ```
 
 Le repo-id peut aussi être défini via la variable d'environnement `HF_REPO_ID`.
+
+### 5. Publier le dataset collecté sur Hugging Face Hub
+
+Les réclamations réelles écrites par `/save_claim` dans `data/raw/` sont poussées
+vers le dépôt dataset (`HF_DATASET_REPO` / `HF_DATASET_FILE`) :
+
+```bash
+python scripts/push_dataset.py
+```
+
+C'est ce dataset que le pipeline relit à l'entraînement suivant : il ferme la
+boucle collecte → réentraînement décrite plus bas.
 
 ---
 
@@ -387,6 +414,8 @@ L'API est en version **5.0.0**. Les endpoints `/predict`, `/save_claim` et `/fea
 Une variable d'environnement absente ne peut donc plus ouvrir l'API : `INTERNAL_KEY` valait `None`,
 l'en-tête absent aussi, et la comparaison `None != None` étant fausse, la garde laissait passer.
 
+> Vue d'ensemble de la sécurité des trois dépôts : [`../SECURITE.md`](../SECURITE.md).
+
 ### `GET /`
 
 Retourne les endpoints disponibles et la version.
@@ -413,6 +442,17 @@ Vérifie que le modèle et les artefacts sont bien chargés.
 ```
 
 > `source_artefacts` vaut `huggingface` ou `local` selon `USE_HF_MODELS` (`config.py`).
+
+### `GET /feature-contract`
+
+> En-tête requis : `X-Internal-Key: <votre_clé>`
+
+Retourne le contrat de features servi par cette instance : vocabulaire catégoriel
+appris, features numériques et `contract_version`. C'est le document de référence
+que la web app copie dans `lib/ml/feature-contract.json` ; comparer les deux
+suffit à détecter une divergence avant qu'un `/predict` ne parte en **409**.
+
+Répond **503** si le contrat n'a pas pu être chargé au démarrage.
 
 ### `POST /predict`
 
